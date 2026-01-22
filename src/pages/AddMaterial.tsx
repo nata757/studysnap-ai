@@ -7,7 +7,6 @@ import { Progress } from '@/components/ui/progress';
 import { ImageCapture } from '@/components/materials/ImageCapture';
 import { OcrPreview } from '@/components/materials/OcrPreview';
 import { TopicSelector } from '@/components/materials/TopicSelector';
-import { useOcr } from '@/hooks/useOcr';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Topic } from '@/lib/types';
@@ -19,7 +18,6 @@ export default function AddMaterial() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { processMultipleImages, isProcessing, error: ocrError } = useOcr();
 
   const [step, setStep] = useState<Step>(1);
   const [images, setImages] = useState<string[]>([]);
@@ -32,26 +30,35 @@ export default function AddMaterial() {
 
   const progress = (step / 3) * 100;
 
+  const [isLoading, setIsLoading] = useState(false);
+
+  const MOCK_OCR_TEXT = `MOCK OCR: Paste your lecture text here. OCR will be enabled later.
+
+---
+
+MOCK OCR: Вставьте текст лекции здесь. OCR будет включён позже.`;
+
   const handleProcessOcr = async () => {
+    // Step 1: Set loading
+    setIsLoading(true);
+
+    // Step 2: Validate images
     if (images.length === 0) {
       toast.error('Please upload at least one photo / Загрузите хотя бы одно фото');
+      setIsLoading(false);
       return;
     }
 
-    const result = await processMultipleImages(images);
-    
-    if (result) {
-      setOcrText(result.text);
-      setOcrConfidence(result.confidence);
-      setStep(2);
-      
-      // Show info if mock OCR was used
-      if (result.confidence === 'low' && result.text.includes('MOCK OCR')) {
-        toast.info('Using placeholder text. Edit as needed.');
-      }
-    } else if (ocrError) {
-      toast.error(ocrError);
-    }
+    // Step 3: Set mock OCR text (real OCR will be enabled later)
+    setOcrText(MOCK_OCR_TEXT);
+    setOcrConfidence('low');
+
+    // Step 4: Stop loading
+    setIsLoading(false);
+
+    // Step 5: Navigate to Step 2 (Review Text)
+    setStep(2);
+    toast.info('Using placeholder text. Edit as needed.');
   };
 
   const handleSave = async () => {
@@ -199,10 +206,10 @@ export default function AddMaterial() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!canProceed() || isProcessing}
+            disabled={!canProceed() || isLoading}
             onClick={handleProcessOcr}
           >
-            {isProcessing ? (
+            {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 {t('material.processing')}
