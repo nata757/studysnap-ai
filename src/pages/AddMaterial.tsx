@@ -34,7 +34,7 @@ export default function AddMaterial() {
 
   const handleProcessOcr = async () => {
     if (images.length === 0) {
-      toast.error('Выберите хотя бы одно изображение');
+      toast.error('Please upload at least one photo / Загрузите хотя бы одно фото');
       return;
     }
 
@@ -44,6 +44,11 @@ export default function AddMaterial() {
       setOcrText(result.text);
       setOcrConfidence(result.confidence);
       setStep(2);
+      
+      // Show info if mock OCR was used
+      if (result.confidence === 'low' && result.text.includes('MOCK OCR')) {
+        toast.info('Using placeholder text. Edit as needed.');
+      }
     } else if (ocrError) {
       toast.error(ocrError);
     }
