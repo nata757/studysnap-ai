@@ -57,6 +57,9 @@ export default function LectureDetail() {
     ocr_text: '',
     images: [],
   });
+  
+  // Separate draft state for text to prevent cursor jumping
+  const [textDraft, setTextDraft] = useState('');
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -64,7 +67,7 @@ export default function LectureDetail() {
     setLightboxOpen(true);
   };
 
-  // Initialize edit form from material
+  // Initialize edit form from material - textDraft is set ONCE here
   const startEditing = () => {
     if (!material) return;
     setEditForm({
@@ -74,12 +77,14 @@ export default function LectureDetail() {
       ocr_text: material.ocr_text || '',
       images: material.images || [],
     });
+    // Initialize textDraft once from material
+    setTextDraft(material.ocr_text || '');
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
-    // Reset form to original values
+    // Reset form and textDraft to original values
     if (material) {
       setEditForm({
         title: material.title || '',
@@ -88,6 +93,7 @@ export default function LectureDetail() {
         ocr_text: material.ocr_text || '',
         images: material.images || [],
       });
+      setTextDraft(material.ocr_text || '');
     }
   };
 
@@ -115,7 +121,7 @@ export default function LectureDetail() {
           title: editForm.title || null,
           topic: editForm.topic,
           tags: tagsArray,
-          ocr_text: editForm.ocr_text || null,
+          ocr_text: textDraft || null,
           images: editForm.images,
         })
         .eq('id', id);
@@ -126,13 +132,13 @@ export default function LectureDetail() {
         return;
       }
 
-      // Update local state
+      // Update local state with textDraft
       setMaterial({
         ...material,
         title: editForm.title || null,
         topic: editForm.topic,
         tags: tagsArray,
-        ocr_text: editForm.ocr_text || null,
+        ocr_text: textDraft || null,
         images: editForm.images,
       });
 
@@ -322,10 +328,13 @@ export default function LectureDetail() {
               <CardContent>
                 {isEditing ? (
                   <Textarea
-                    value={editForm.ocr_text}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, ocr_text: e.target.value }))}
+                    value={textDraft}
+                    onChange={(e) => setTextDraft(e.target.value)}
                     placeholder="Enter lecture text..."
                     className="min-h-[300px] font-mono text-sm"
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="off"
                   />
                 ) : material.ocr_text ? (
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
