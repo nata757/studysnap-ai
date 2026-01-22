@@ -9,6 +9,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -60,6 +70,10 @@ export default function LectureDetail() {
   
   // Separate draft state for text to prevent cursor jumping
   const [textDraft, setTextDraft] = useState('');
+  
+  // Photo deletion state
+  const [deletePhotoIndex, setDeletePhotoIndex] = useState<number | null>(null);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -97,11 +111,64 @@ export default function LectureDetail() {
     }
   };
 
-  const handleDeletePhoto = (indexToDelete: number) => {
-    setEditForm((prev) => ({
-      ...prev,
-      images: prev.images.filter((_, idx) => idx !== indexToDelete),
-    }));
+  // Extract storage path from URL for deletion
+  const extractStoragePath = (url: string): string | null => {
+    try {
+      // URL format: .../storage/v1/object/public/materials/user_id/filename
+      const match = url.match(/\/materials\/(.+)$/);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (deletePhotoIndex === null || !material || !id) return;
+    
+    const photoUrl = editForm.images[deletePhotoIndex];
+    if (!photoUrl) return;
+
+    setIsDeletingPhoto(true);
+    try {
+      // Remove URL from array
+      const updatedImages = editForm.images.filter((_, idx) => idx !== deletePhotoIndex);
+
+      // Update database immediately
+      const { error: updateError } = await supabase
+        .from('materials')
+        .update({ images: updatedImages })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('Failed to update images:', updateError);
+        toast.error('Failed to delete photo');
+        return;
+      }
+
+      // Try to delete from storage (optional, don't fail if it doesn't work)
+      const storagePath = extractStoragePath(photoUrl);
+      if (storagePath) {
+        const { error: storageError } = await supabase.storage
+          .from('materials')
+          .remove([storagePath]);
+        
+        if (storageError) {
+          console.warn('Storage deletion failed (non-critical):', storageError);
+        }
+      }
+
+      // Update local state
+      setEditForm((prev) => ({ ...prev, images: updatedImages }));
+      setMaterial((prev) => prev ? { ...prev, images: updatedImages } : null);
+      
+      toast.success('Photo deleted');
+    } catch (err) {
+      console.error('Delete photo error:', err);
+      toast.error('Failed to delete photo');
+    } finally {
+      setIsDeletingPhoto(false);
+      setDeletePhotoIndex(null);
+    }
   };
 
   const handleSave = async () => {
@@ -372,8 +439,9 @@ export default function LectureDetail() {
                             className="absolute top-2 right-2 h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeletePhoto(idx);
+                              setDeletePhotoIndex(idx);
                             }}
+                            disabled={isDeletingPhoto}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -434,6 +502,33 @@ export default function LectureDetail() {
             </Button>
           </div>
         )}
+
+        {/* Delete photo confirmation dialog */}
+        <AlertDialog open={deletePhotoIndex !== null} onOpenChange={(open) => !open && setDeletePhotoIndex(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. The photo will be permanently removed from this material.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeletingPhoto}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeletePhoto}
+                disabled={isDeletingPhoto}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingPhoto ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
