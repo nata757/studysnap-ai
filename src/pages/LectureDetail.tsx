@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save } from 'lucide-react';
+import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,6 +79,10 @@ export default function LectureDetail() {
   
   // Photo deletion state
   const [deletePhotoIndex, setDeletePhotoIndex] = useState<number | null>(null);
+  
+  // Material deletion state
+  const [showDeleteMaterial, setShowDeleteMaterial] = useState(false);
+  const [isDeletingMaterial, setIsDeletingMaterial] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
 
   const openLightbox = (index: number) => {
@@ -219,6 +229,52 @@ export default function LectureDetail() {
     }
   };
 
+  const handleDeleteMaterial = async () => {
+    if (!material || !id) return;
+
+    setIsDeletingMaterial(true);
+    try {
+      // Delete related records first (flashcards, quiz_questions, summaries)
+      await Promise.all([
+        supabase.from('flashcards').delete().eq('material_id', id),
+        supabase.from('quiz_questions').delete().eq('material_id', id),
+        supabase.from('summaries').delete().eq('material_id', id),
+      ]);
+
+      // Try to delete photos from storage
+      if (material.images && material.images.length > 0) {
+        const storagePaths = material.images
+          .map(url => extractStoragePath(url))
+          .filter((path): path is string => path !== null);
+        
+        if (storagePaths.length > 0) {
+          await supabase.storage.from('materials').remove(storagePaths);
+        }
+      }
+
+      // Delete the material record
+      const { error: deleteError } = await supabase
+        .from('materials')
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) {
+        console.error('Delete material error:', deleteError);
+        toast.error('Failed to delete material');
+        return;
+      }
+
+      toast.success('Material deleted');
+      navigate('/', { replace: true });
+    } catch (err) {
+      console.error('Delete material error:', err);
+      toast.error('Failed to delete material');
+    } finally {
+      setIsDeletingMaterial(false);
+      setShowDeleteMaterial(false);
+    }
+  };
+
   useEffect(() => {
     const fetchMaterial = async () => {
       if (!id || !user) {
@@ -302,9 +358,26 @@ export default function LectureDetail() {
             )}
           </div>
           {!isEditing && (
-            <Button variant="ghost" size="icon" onClick={startEditing}>
-              <Pencil className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={startEditing}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setShowDeleteMaterial(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete material
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -520,6 +593,33 @@ export default function LectureDetail() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {isDeletingPhoto ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete material confirmation dialog */}
+        <AlertDialog open={showDeleteMaterial} onOpenChange={setShowDeleteMaterial}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this material?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this material along with all its flashcards, quizzes, and summaries. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeletingMaterial}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteMaterial}
+                disabled={isDeletingMaterial}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingMaterial ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Trash2 className="h-4 w-4 mr-2" />
