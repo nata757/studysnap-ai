@@ -18,6 +18,10 @@ export function MaterialCard({ material }: MaterialCardProps) {
   const { t, i18n } = useTranslation();
   const locale = locales[i18n.language as keyof typeof locales] || ru;
   
+  // Handle nullable arrays from database
+  const images = material.images ?? [];
+  const tags = material.tags ?? [];
+  
   const topicLabel = TOPIC_LABELS[material.topic as keyof typeof TOPIC_LABELS]?.[
     i18n.language as 'ru' | 'de' | 'en'
   ] || material.topic;
@@ -31,10 +35,10 @@ export function MaterialCard({ material }: MaterialCardProps) {
     <Link to={`/material/${material.id}`}>
       <Card className="transition-shadow hover:shadow-md">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2">
-                {material.images.length > 0 ? (
+                {images.length > 0 ? (
                   <Image className="h-4 w-4 text-muted-foreground" />
                 ) : (
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -48,7 +52,7 @@ export function MaterialCard({ material }: MaterialCardProps) {
                 <Badge variant="secondary" className="text-xs">
                   {topicLabel}
                 </Badge>
-                {material.tags.slice(0, 2).map((tag) => (
+                {tags.slice(0, 2).map((tag) => (
                   <Badge key={tag} variant="outline" className="text-xs">
                     {tag}
                   </Badge>
@@ -64,10 +68,10 @@ export function MaterialCard({ material }: MaterialCardProps) {
               <p className="text-xs text-muted-foreground">{timeAgo}</p>
             </div>
             
-            {material.images.length > 0 && (
+            {images.length > 0 && (
               <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
                 <img
-                  src={material.images[0]}
+                  src={images[0]}
                   alt=""
                   className="h-full w-full object-cover"
                 />
