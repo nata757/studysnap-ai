@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical } from 'lucide-react';
+import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical, Plus } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +32,7 @@ import { toast } from 'sonner';
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
 import { TOPICS } from '@/lib/constants';
 import { Topic, PhotoData } from '@/lib/types';
-import { deletePhoto, deletePhotosWithResults } from '@/lib/storage';
+import { deletePhoto, deletePhotosWithResults, uploadPhoto } from '@/lib/storage';
 
 interface Material {
   id: string;
@@ -58,6 +58,7 @@ export default function LectureDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [material, setMaterial] = useState<Material | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,6 +82,9 @@ export default function LectureDetail() {
   
   // Photo deletion state
   const [deletePhotoIndex, setDeletePhotoIndex] = useState<number | null>(null);
+  
+  // Photo upload state
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   
   // Material deletion state
   const [showDeleteMaterial, setShowDeleteMaterial] = useState(false);
@@ -211,6 +215,68 @@ export default function LectureDetail() {
     } finally {
       setIsDeletingPhoto(false);
       setDeletePhotoIndex(null);
+    }
+  };
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle adding new photos in edit mode
+  const handleAddPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user || !id) return;
+
+    setIsUploadingPhotos(true);
+    const newPhotos: PhotoData[] = [];
+    let failedCount = 0;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) {
+          failedCount++;
+          continue;
+        }
+
+        // Convert to base64 and upload
+        const base64 = await fileToBase64(file);
+        const photoData = await uploadPhoto(base64, user.id, id);
+        
+        if (photoData) {
+          newPhotos.push(photoData);
+        } else {
+          failedCount++;
+        }
+      }
+
+      if (newPhotos.length > 0) {
+        // Append new photos to editForm
+        setEditForm(prev => ({
+          ...prev,
+          photos: [...prev.photos, ...newPhotos],
+        }));
+        toast.success(`${newPhotos.length} photo(s) added`);
+      }
+
+      if (failedCount > 0) {
+        toast.warning(`${failedCount} photo(s) failed to upload`);
+      }
+    } catch (err) {
+      console.error('Add photos error:', err);
+      toast.error('Failed to add photos');
+    } finally {
+      setIsUploadingPhotos(false);
+      // Reset input
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -541,6 +607,38 @@ export default function LectureDetail() {
           </TabsContent>
 
           <TabsContent value="photos" className="mt-4">
+            {/* Hidden file input for adding photos */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleAddPhotos}
+            />
+
+            {/* Add photos button in edit mode */}
+            {isEditing && (
+              <Button
+                variant="outline"
+                className="w-full mb-4"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingPhotos}
+              >
+                {isUploadingPhotos ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add photos
+                  </>
+                )}
+              </Button>
+            )}
+
             {displayPhotos.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -592,7 +690,7 @@ export default function LectureDetail() {
               <Card>
                 <CardContent className="py-8 text-center">
                   <p className="text-muted-foreground text-sm">
-                    No photos available
+                    {isEditing ? 'No photos yet. Click "Add photos" above.' : 'No photos available'}
                   </p>
                 </CardContent>
               </Card>
