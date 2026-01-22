@@ -32,7 +32,7 @@ export function MaterialCard({ material }: MaterialCardProps) {
   });
 
   return (
-    <Link to={`/material/${material.id}`}>
+    <Link to={`/lecture/${material.id}`}>
       <Card className="transition-shadow hover:shadow-md">
         <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">

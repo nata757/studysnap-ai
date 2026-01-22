@@ -122,7 +122,7 @@ export default function AddMaterial() {
       }
 
       toast.success('Материал сохранён!');
-      navigate(`/material/${material.id}`);
+      navigate(`/lecture/${material.id}`);
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Ошибка сохранения');
