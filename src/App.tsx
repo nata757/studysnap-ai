@@ -11,6 +11,7 @@ import Search from "./pages/Search";
 import Review from "./pages/Review";
 import Profile from "./pages/Profile";
 import AddMaterial from "./pages/AddMaterial";
+import ReviewText from "./pages/ReviewText";
 import NotFound from "./pages/NotFound";
 import "@/i18n";
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
             <Route path="/add-material" element={<AuthGuard><AddMaterial /></AuthGuard>} />
+            <Route path="/review-text" element={<AuthGuard><ReviewText /></AuthGuard>} />
             <Route path="/search" element={<AuthGuard><Search /></AuthGuard>} />
             <Route path="/review" element={<AuthGuard><Review /></AuthGuard>} />
             <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
