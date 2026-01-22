@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical, Plus } from 'lucide-react';
+import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical, Plus, Sparkles, BookOpen, HelpCircle, Info } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -698,7 +698,56 @@ export default function LectureDetail() {
           </TabsContent>
         </Tabs>
 
-        {/* Edit mode action buttons */}
+        {/* AI Study Tools Section - only show when not editing */}
+        {!isEditing && material.ocr_text && (
+          <Card className="mt-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                AI Study Tools
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-3 gap-3">
+                <Button
+                  variant="outline"
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => toast.info('Summary generation coming soon!')}
+                >
+                  <FileText className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium">Summarize</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => toast.info('Flashcard generation coming soon!')}
+                >
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium">Flashcards</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => toast.info('Quiz generation coming soon!')}
+                >
+                  <HelpCircle className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium">Quiz</span>
+                </Button>
+              </div>
+
+              {/* Safety Note */}
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  AI uses only your text. If something is missing, it will mark it as low confidence and ask to clarify.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+
         {isEditing && (
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t flex gap-3">
             <Button
