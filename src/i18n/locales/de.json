@@ -1,0 +1,87 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "next": "Weiter",
+    "back": "Zurück",
+    "error": "Fehler",
+    "success": "Erfolg"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "signup": "Registrieren",
+    "logout": "Abmelden",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "forgotPassword": "Passwort vergessen?",
+    "noAccount": "Kein Konto?",
+    "hasAccount": "Bereits ein Konto?",
+    "loginError": "Anmeldefehler. Überprüfen Sie Ihre Daten.",
+    "signupError": "Registrierungsfehler.",
+    "passwordMismatch": "Passwörter stimmen nicht überein",
+    "emailRequired": "E-Mail erforderlich",
+    "passwordRequired": "Passwort erforderlich",
+    "passwordMinLength": "Passwort mindestens 6 Zeichen"
+  },
+  "nav": {
+    "home": "Startseite",
+    "search": "Suche",
+    "review": "Wiederholen",
+    "profile": "Profil"
+  },
+  "home": {
+    "title": "StudySnap",
+    "reviewToday": "Heute wiederholen",
+    "cards": "Karten",
+    "startReview": "Wiederholung starten",
+    "addMaterial": "Material hinzufügen",
+    "recentMaterials": "Letzte Materialien",
+    "noMaterials": "Noch keine Materialien. Fügen Sie das erste hinzu!"
+  },
+  "material": {
+    "add": "Material hinzufügen",
+    "photos": "Fotos",
+    "text": "Text",
+    "summary": "Zusammenfassung",
+    "flashcards": "Karten",
+    "quiz": "Quiz",
+    "selectPhotos": "Fotos auswählen",
+    "takePhoto": "Kamera",
+    "gallery": "Galerie",
+    "processing": "Verarbeitung...",
+    "ocrResult": "Erkannter Text",
+    "editText": "Text bearbeiten",
+    "selectTopic": "Thema auswählen",
+    "addTags": "Tags hinzufügen",
+    "title": "Titel (optional)",
+    "generate": "Generieren",
+    "generateSummary": "Zusammenfassen",
+    "generateFlashcards": "Karten erstellen",
+    "generateQuiz": "Quiz erstellen",
+    "privacyHint": "⚠️ Laden Sie keine Fotos mit persönlichen Patientendaten hoch. Verwenden Sie bei Bedarf das Zuschneiden."
+  },
+  "review": {
+    "title": "Wiederholung",
+    "remaining": "Verbleibend",
+    "knew": "Wusste",
+    "didntKnow": "Wusste nicht",
+    "showAnswer": "Antwort zeigen",
+    "complete": "Alles für heute erledigt! 🎉",
+    "noCards": "Keine Karten zum Wiederholen"
+  },
+  "search": {
+    "title": "Suche",
+    "placeholder": "Materialien durchsuchen...",
+    "noResults": "Keine Ergebnisse",
+    "filterByTopic": "Nach Thema filtern"
+  },
+  "confidence": {
+    "high": "Hohe Sicherheit",
+    "medium": "Mittlere Sicherheit",
+    "low": "Niedrige Sicherheit - überprüfen!"
+  }
+}

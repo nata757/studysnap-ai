@@ -1,0 +1,87 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "next": "Next",
+    "back": "Back",
+    "error": "Error",
+    "success": "Success"
+  },
+  "auth": {
+    "login": "Login",
+    "signup": "Sign Up",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "No account?",
+    "hasAccount": "Already have an account?",
+    "loginError": "Login error. Please check your credentials.",
+    "signupError": "Registration error.",
+    "passwordMismatch": "Passwords do not match",
+    "emailRequired": "Email is required",
+    "passwordRequired": "Password is required",
+    "passwordMinLength": "Password must be at least 6 characters"
+  },
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "review": "Review",
+    "profile": "Profile"
+  },
+  "home": {
+    "title": "StudySnap",
+    "reviewToday": "Review today",
+    "cards": "cards",
+    "startReview": "Start Review",
+    "addMaterial": "Add Material",
+    "recentMaterials": "Recent Materials",
+    "noMaterials": "No materials yet. Add your first one!"
+  },
+  "material": {
+    "add": "Add Material",
+    "photos": "Photos",
+    "text": "Text",
+    "summary": "Summary",
+    "flashcards": "Flashcards",
+    "quiz": "Quiz",
+    "selectPhotos": "Select photos",
+    "takePhoto": "Camera",
+    "gallery": "Gallery",
+    "processing": "Processing...",
+    "ocrResult": "Recognized text",
+    "editText": "Edit text",
+    "selectTopic": "Select topic",
+    "addTags": "Add tags",
+    "title": "Title (optional)",
+    "generate": "Generate",
+    "generateSummary": "Summarize",
+    "generateFlashcards": "Create Flashcards",
+    "generateQuiz": "Create Quiz",
+    "privacyHint": "⚠️ Do not upload photos with personal patient data. Use cropping if needed."
+  },
+  "review": {
+    "title": "Review",
+    "remaining": "Remaining",
+    "knew": "Knew it",
+    "didntKnow": "Didn't know",
+    "showAnswer": "Show Answer",
+    "complete": "All done for today! 🎉",
+    "noCards": "No cards to review"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search materials...",
+    "noResults": "No results found",
+    "filterByTopic": "Filter by topic"
+  },
+  "confidence": {
+    "high": "High confidence",
+    "medium": "Medium confidence",
+    "low": "Low confidence - verify!"
+  }
+}
