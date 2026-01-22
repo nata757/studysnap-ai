@@ -45,6 +45,16 @@ interface Material {
   created_at: string | null;
 }
 
+interface Summary {
+  id: string;
+  material_id: string;
+  short_summary: string | null;
+  medium_summary: string | null;
+  long_summary: string | null;
+  warnings: string[];
+  generated_at: string;
+}
+
 interface EditForm {
   title: string;
   topic: Topic;
@@ -52,6 +62,8 @@ interface EditForm {
   ocr_text: string;
   photos: PhotoData[];
 }
+
+type SummaryLevel = 'short' | 'medium' | 'long';
 
 export default function LectureDetail() {
   const { t } = useTranslation();
@@ -90,6 +102,11 @@ export default function LectureDetail() {
   const [showDeleteMaterial, setShowDeleteMaterial] = useState(false);
   const [isDeletingMaterial, setIsDeletingMaterial] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+
+  // Summary state
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summaryLevel, setSummaryLevel] = useState<SummaryLevel>('short');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -392,6 +409,61 @@ export default function LectureDetail() {
     }
   };
 
+  // Fetch existing summary
+  const fetchSummary = async () => {
+    if (!id) return;
+    
+    const { data } = await supabase
+      .from('summaries')
+      .select('*')
+      .eq('material_id', id)
+      .maybeSingle();
+    
+    if (data) {
+      setSummary(data);
+    }
+  };
+
+  // Generate summary using AI
+  const handleGenerateSummary = async () => {
+    if (!material || !material.ocr_text || !id) {
+      toast.error('No text available to summarize');
+      return;
+    }
+
+    setIsGeneratingSummary(true);
+    
+    try {
+      const response = await supabase.functions.invoke('generate-summary', {
+        body: {
+          material_id: id,
+          ocr_text: material.ocr_text,
+          title: material.title,
+          topic: material.topic,
+        },
+      });
+
+      if (response.error) {
+        console.error('Summary error:', response.error);
+        toast.error(response.error.message || 'Failed to generate summary');
+        return;
+      }
+
+      if (response.data?.error) {
+        toast.error(response.data.error);
+        return;
+      }
+
+      setSummary(response.data.summary);
+      toast.success('Summary generated!');
+    } catch (err) {
+      console.error('Generate summary error:', err);
+      toast.error('Failed to generate summary');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
   useEffect(() => {
     const fetchMaterial = async () => {
       if (!id || !user) {
@@ -427,6 +499,7 @@ export default function LectureDetail() {
     };
 
     fetchMaterial();
+    fetchSummary();
   }, [id, user]);
 
   // Redirect to home if material not found (after loading completes)
@@ -566,14 +639,18 @@ export default function LectureDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="text" className="w-full">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="text" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Text
             </TabsTrigger>
+            <TabsTrigger value="summary" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Summary
+            </TabsTrigger>
             <TabsTrigger value="photos" className="flex items-center gap-2">
               <Image className="h-4 w-4" />
-              Photos ({displayPhotos.length})
+              Photos
             </TabsTrigger>
           </TabsList>
 
@@ -601,6 +678,76 @@ export default function LectureDetail() {
                   <p className="text-muted-foreground text-sm">
                     No text available
                   </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="summary" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Summary</CardTitle>
+                  {summary && (
+                    <div className="flex gap-1">
+                      {(['short', 'medium', 'long'] as const).map((level) => (
+                        <Button
+                          key={level}
+                          variant={summaryLevel === level ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSummaryLevel(level)}
+                          className="text-xs capitalize"
+                        >
+                          {level}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isGeneratingSummary ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Generating summary...</p>
+                  </div>
+                ) : summary ? (
+                  <>
+                    {/* Warnings */}
+                    {summary.warnings && summary.warnings.length > 0 && (
+                      <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                        <div className="flex items-center gap-2 text-warning text-sm font-medium">
+                          <Info className="h-4 w-4" />
+                          Needs clarification
+                        </div>
+                        <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
+                          {summary.warnings.map((warning, idx) => (
+                            <li key={idx}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Summary content */}
+                    <div className="prose prose-sm max-w-none">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-transparent p-0 m-0">
+                        {summaryLevel === 'short' && summary.short_summary}
+                        {summaryLevel === 'medium' && summary.medium_summary}
+                        {summaryLevel === 'long' && summary.long_summary}
+                      </pre>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Generated {new Date(summary.generated_at).toLocaleDateString()}
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-center py-8 space-y-3">
+                    <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      No summary yet. Use the AI Study Tools below to generate one.
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -713,10 +860,17 @@ export default function LectureDetail() {
                 <Button
                   variant="outline"
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => toast.info('Summary generation coming soon!')}
+                  onClick={handleGenerateSummary}
+                  disabled={isGeneratingSummary}
                 >
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span className="text-xs font-medium">Summarize</span>
+                  {isGeneratingSummary ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-primary" />
+                  )}
+                  <span className="text-xs font-medium">
+                    {isGeneratingSummary ? 'Generating...' : 'Summarize'}
+                  </span>
                 </Button>
                 <Button
                   variant="outline"
