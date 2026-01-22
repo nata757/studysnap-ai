@@ -160,10 +160,23 @@ export default function LectureDetail() {
 
     setIsDeletingPhoto(true);
     try {
-      // Remove photo from array
+      const isLegacyPhoto = !photo.path;
+
+      // If photo has a path, try to delete from storage FIRST
+      if (!isLegacyPhoto) {
+        const storageDeleted = await deletePhoto(photo.path!);
+        
+        if (!storageDeleted) {
+          toast.error('Could not delete from storage. Try again.');
+          setIsDeletingPhoto(false);
+          setDeletePhotoIndex(null);
+          return;
+        }
+      }
+
+      // Storage deletion succeeded (or legacy photo) - now update database
       const updatedPhotos = editForm.photos.filter((_, idx) => idx !== deletePhotoIndex);
 
-      // Update database immediately (both photos and legacy images)
       const { error: updateError } = await supabase
         .from('materials')
         .update({ 
@@ -173,15 +186,9 @@ export default function LectureDetail() {
         .eq('id', id);
 
       if (updateError) {
-        console.error('Failed to update photos:', updateError);
-        toast.error('Failed to delete photo');
+        console.error('Failed to update photos in database:', updateError);
+        toast.error('Failed to update material record');
         return;
-      }
-
-      // Delete from storage using path (preferred) or extracted path from URL
-      const storagePath = photo.path || extractStoragePath(photo.url);
-      if (storagePath) {
-        await deletePhoto(storagePath);
       }
 
       // Update local state
@@ -192,7 +199,12 @@ export default function LectureDetail() {
         images: updatedPhotos.map(p => p.url),
       } : null);
       
-      toast.success('Photo deleted');
+      // Show appropriate message
+      if (isLegacyPhoto) {
+        toast.warning('Removed from material, but storage cleanup not available for legacy photos.');
+      } else {
+        toast.success('Photo deleted');
+      }
     } catch (err) {
       console.error('Delete photo error:', err);
       toast.error('Failed to delete photo');
@@ -604,9 +616,9 @@ export default function LectureDetail() {
         <AlertDialog open={deletePhotoIndex !== null} onOpenChange={(open) => !open && setDeletePhotoIndex(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this photo permanently?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. The photo will be permanently removed from this material.
+                This action cannot be undone. The photo will be permanently removed from storage and this material.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
