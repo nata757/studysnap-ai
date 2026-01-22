@@ -32,7 +32,7 @@ import { toast } from 'sonner';
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
 import { TOPICS } from '@/lib/constants';
 import { Topic, PhotoData } from '@/lib/types';
-import { deletePhoto, deletePhotos } from '@/lib/storage';
+import { deletePhoto, deletePhotosWithResults } from '@/lib/storage';
 
 interface Material {
   id: string;
@@ -269,24 +269,33 @@ export default function LectureDetail() {
 
     setIsDeletingMaterial(true);
     try {
-      // Delete related records first (flashcards, quiz_questions, summaries)
+      // Get photos with valid paths for storage deletion
+      const photos = getMaterialPhotos(material);
+      const photosWithPaths = photos.filter(p => p.path !== null);
+      const storagePaths = photosWithPaths.map(p => p.path!);
+      
+      // Track storage deletion failures
+      let failedStorageCount = 0;
+      const failedPaths: string[] = [];
+
+      // Delete photos from storage first (only those with paths)
+      if (storagePaths.length > 0) {
+        const { failed } = await deletePhotosWithResults(storagePaths);
+        failedStorageCount = failed.length;
+        failedPaths.push(...failed);
+        
+        // Log failed paths for later cleanup
+        if (failed.length > 0) {
+          console.warn('Failed to delete these storage paths (orphaned files):', failed);
+        }
+      }
+
+      // Delete related records (flashcards, quiz_questions, summaries)
       await Promise.all([
         supabase.from('flashcards').delete().eq('material_id', id),
         supabase.from('quiz_questions').delete().eq('material_id', id),
         supabase.from('summaries').delete().eq('material_id', id),
       ]);
-
-      // Try to delete photos from storage using paths
-      const photos = getMaterialPhotos(material);
-      if (photos.length > 0) {
-        const storagePaths = photos
-          .map(p => p.path || extractStoragePath(p.url))
-          .filter((path): path is string => path !== null);
-        
-        if (storagePaths.length > 0) {
-          await deletePhotos(storagePaths);
-        }
-      }
 
       // Delete the material record
       const { error: deleteError } = await supabase
@@ -300,7 +309,13 @@ export default function LectureDetail() {
         return;
       }
 
-      toast.success('Material deleted');
+      // Show appropriate toast
+      if (failedStorageCount > 0) {
+        toast.warning(`Material deleted, but ${failedStorageCount} file(s) could not be removed from storage.`);
+      } else {
+        toast.success('Material deleted');
+      }
+      
       navigate('/', { replace: true });
     } catch (err) {
       console.error('Delete material error:', err);

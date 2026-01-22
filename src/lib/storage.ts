@@ -82,7 +82,30 @@ export async function deletePhoto(path: string): Promise<boolean> {
 }
 
 /**
- * Delete multiple photos from storage
+ * Delete multiple photos from storage, returning results for each
+ */
+export async function deletePhotosWithResults(
+  paths: string[]
+): Promise<{ succeeded: string[]; failed: string[] }> {
+  const validPaths = paths.filter((p): p is string => p !== null && p.length > 0);
+  const succeeded: string[] = [];
+  const failed: string[] = [];
+
+  for (const path of validPaths) {
+    const success = await deletePhoto(path);
+    if (success) {
+      succeeded.push(path);
+    } else {
+      failed.push(path);
+    }
+  }
+
+  return { succeeded, failed };
+}
+
+/**
+ * Delete multiple photos from storage (fire and forget)
+ * @deprecated Use deletePhotosWithResults for better error handling
  */
 export async function deletePhotos(paths: string[]): Promise<void> {
   const validPaths = paths.filter((p): p is string => p !== null && p.length > 0);
