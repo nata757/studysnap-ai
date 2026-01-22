@@ -31,7 +31,8 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
 import { TOPICS } from '@/lib/constants';
-import { Topic } from '@/lib/types';
+import { Topic, PhotoData } from '@/lib/types';
+import { deletePhoto, deletePhotos } from '@/lib/storage';
 
 interface Material {
   id: string;
@@ -39,7 +40,8 @@ interface Material {
   topic: string;
   tags: string[] | null;
   ocr_text: string | null;
-  images: string[] | null;
+  images: string[] | null; // Legacy
+  photos: PhotoData[] | null; // New structure
   created_at: string | null;
 }
 
@@ -48,7 +50,7 @@ interface EditForm {
   topic: Topic;
   tags: string;
   ocr_text: string;
-  images: string[];
+  photos: PhotoData[];
 }
 
 export default function LectureDetail() {
@@ -71,7 +73,7 @@ export default function LectureDetail() {
     topic: 'Sonstiges',
     tags: '',
     ocr_text: '',
-    images: [],
+    photos: [],
   });
   
   // Separate draft state for text to prevent cursor jumping
@@ -91,15 +93,32 @@ export default function LectureDetail() {
     setLightboxOpen(true);
   };
 
+  // Helper to get photos from material (handles legacy images array)
+  const getMaterialPhotos = (mat: Material): PhotoData[] => {
+    // Prefer new photos array, fallback to converting legacy images
+    if (mat.photos && mat.photos.length > 0) {
+      return mat.photos;
+    }
+    if (mat.images && mat.images.length > 0) {
+      return mat.images.map(url => ({
+        url,
+        path: null, // Legacy - no path stored
+        createdAt: mat.created_at || new Date().toISOString(),
+      }));
+    }
+    return [];
+  };
+
   // Initialize edit form from material - textDraft is set ONCE here
   const startEditing = () => {
     if (!material) return;
+    const photos = getMaterialPhotos(material);
     setEditForm({
       title: material.title || '',
       topic: (material.topic as Topic) || 'Sonstiges',
       tags: material.tags?.join(', ') || '',
       ocr_text: material.ocr_text || '',
-      images: material.images || [],
+      photos,
     });
     // Initialize textDraft once from material
     setTextDraft(material.ocr_text || '');
@@ -110,12 +129,13 @@ export default function LectureDetail() {
     setIsEditing(false);
     // Reset form and textDraft to original values
     if (material) {
+      const photos = getMaterialPhotos(material);
       setEditForm({
         title: material.title || '',
         topic: (material.topic as Topic) || 'Sonstiges',
         tags: material.tags?.join(', ') || '',
         ocr_text: material.ocr_text || '',
-        images: material.images || [],
+        photos,
       });
       setTextDraft(material.ocr_text || '');
     }
@@ -135,41 +155,42 @@ export default function LectureDetail() {
   const handleDeletePhoto = async () => {
     if (deletePhotoIndex === null || !material || !id) return;
     
-    const photoUrl = editForm.images[deletePhotoIndex];
-    if (!photoUrl) return;
+    const photo = editForm.photos[deletePhotoIndex];
+    if (!photo) return;
 
     setIsDeletingPhoto(true);
     try {
-      // Remove URL from array
-      const updatedImages = editForm.images.filter((_, idx) => idx !== deletePhotoIndex);
+      // Remove photo from array
+      const updatedPhotos = editForm.photos.filter((_, idx) => idx !== deletePhotoIndex);
 
-      // Update database immediately
+      // Update database immediately (both photos and legacy images)
       const { error: updateError } = await supabase
         .from('materials')
-        .update({ images: updatedImages })
+        .update({ 
+          photos: updatedPhotos,
+          images: updatedPhotos.map(p => p.url), // Keep legacy in sync
+        })
         .eq('id', id);
 
       if (updateError) {
-        console.error('Failed to update images:', updateError);
+        console.error('Failed to update photos:', updateError);
         toast.error('Failed to delete photo');
         return;
       }
 
-      // Try to delete from storage (optional, don't fail if it doesn't work)
-      const storagePath = extractStoragePath(photoUrl);
+      // Delete from storage using path (preferred) or extracted path from URL
+      const storagePath = photo.path || extractStoragePath(photo.url);
       if (storagePath) {
-        const { error: storageError } = await supabase.storage
-          .from('materials')
-          .remove([storagePath]);
-        
-        if (storageError) {
-          console.warn('Storage deletion failed (non-critical):', storageError);
-        }
+        await deletePhoto(storagePath);
       }
 
       // Update local state
-      setEditForm((prev) => ({ ...prev, images: updatedImages }));
-      setMaterial((prev) => prev ? { ...prev, images: updatedImages } : null);
+      setEditForm((prev) => ({ ...prev, photos: updatedPhotos }));
+      setMaterial((prev) => prev ? { 
+        ...prev, 
+        photos: updatedPhotos,
+        images: updatedPhotos.map(p => p.url),
+      } : null);
       
       toast.success('Photo deleted');
     } catch (err) {
@@ -199,7 +220,8 @@ export default function LectureDetail() {
           topic: editForm.topic,
           tags: tagsArray,
           ocr_text: textDraft || null,
-          images: editForm.images,
+          photos: editForm.photos,
+          images: editForm.photos.map(p => p.url), // Keep legacy in sync
         })
         .eq('id', id);
 
@@ -216,7 +238,8 @@ export default function LectureDetail() {
         topic: editForm.topic,
         tags: tagsArray,
         ocr_text: textDraft || null,
-        images: editForm.images,
+        photos: editForm.photos,
+        images: editForm.photos.map(p => p.url),
       });
 
       setIsEditing(false);
@@ -241,14 +264,15 @@ export default function LectureDetail() {
         supabase.from('summaries').delete().eq('material_id', id),
       ]);
 
-      // Try to delete photos from storage
-      if (material.images && material.images.length > 0) {
-        const storagePaths = material.images
-          .map(url => extractStoragePath(url))
+      // Try to delete photos from storage using paths
+      const photos = getMaterialPhotos(material);
+      if (photos.length > 0) {
+        const storagePaths = photos
+          .map(p => p.path || extractStoragePath(p.url))
           .filter((path): path is string => path !== null);
         
         if (storagePaths.length > 0) {
-          await supabase.storage.from('materials').remove(storagePaths);
+          await deletePhotos(storagePaths);
         }
       }
 
@@ -329,8 +353,8 @@ export default function LectureDetail() {
     );
   }
 
-  // Images to display (either from edit form or material)
-  const displayImages = isEditing ? editForm.images : (material.images || []);
+  // Photos to display (either from edit form or material)
+  const displayPhotos = isEditing ? editForm.photos : getMaterialPhotos(material);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -456,7 +480,7 @@ export default function LectureDetail() {
             </TabsTrigger>
             <TabsTrigger value="photos" className="flex items-center gap-2">
               <Image className="h-4 w-4" />
-              Photos ({displayImages.length})
+              Photos ({displayPhotos.length})
             </TabsTrigger>
           </TabsList>
 
@@ -490,10 +514,10 @@ export default function LectureDetail() {
           </TabsContent>
 
           <TabsContent value="photos" className="mt-4">
-            {displayImages.length > 0 ? (
+            {displayPhotos.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  {displayImages.map((url, idx) => (
+                  {displayPhotos.map((photo, idx) => (
                     <Card
                       key={idx}
                       className={`overflow-hidden relative ${!isEditing ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}
@@ -501,7 +525,7 @@ export default function LectureDetail() {
                     >
                       <div className="relative">
                         <img
-                          src={url}
+                          src={photo.url}
                           alt={`Photo ${idx + 1}`}
                           className="w-full h-40 object-cover pointer-events-none"
                         />
@@ -528,9 +552,9 @@ export default function LectureDetail() {
                     Tap to zoom
                   </p>
                 )}
-                {!isEditing && material.images && material.images.length > 0 && (
+                {!isEditing && displayPhotos.length > 0 && (
                   <ImageLightbox
-                    images={material.images}
+                    images={displayPhotos.map(p => p.url)}
                     initialIndex={lightboxIndex}
                     isOpen={lightboxOpen}
                     onClose={() => setLightboxOpen(false)}

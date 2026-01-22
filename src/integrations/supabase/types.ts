@@ -62,6 +62,7 @@ export type Database = {
           images: string[] | null
           notes: string | null
           ocr_text: string | null
+          photos: Json | null
           tags: string[] | null
           title: string | null
           topic: string
@@ -74,6 +75,7 @@ export type Database = {
           images?: string[] | null
           notes?: string | null
           ocr_text?: string | null
+          photos?: Json | null
           tags?: string[] | null
           title?: string | null
           topic: string
@@ -86,6 +88,7 @@ export type Database = {
           images?: string[] | null
           notes?: string | null
           ocr_text?: string | null
+          photos?: Json | null
           tags?: string[] | null
           title?: string | null
           topic?: string
