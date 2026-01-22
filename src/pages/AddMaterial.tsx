@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ImageCapture } from '@/components/materials/ImageCapture';
@@ -30,40 +30,20 @@ export default function AddMaterial() {
 
   const progress = (step / 3) * 100;
 
-  const [isLoading, setIsLoading] = useState(false);
-
-  const MOCK_OCR_TEXT = `MOCK OCR: Paste your lecture text here. OCR will be enabled later.
-
----
-
-MOCK OCR: Вставьте текст лекции здесь. OCR будет включён позже.`;
-
   const handleProcessOcr = () => {
-    // Debug toast to confirm click is firing
-    toast.info('Clicked!');
-
-    // Step 1: Set loading
-    setIsLoading(true);
-
-    // Step 2: Validate images
+    // Validate images first
     if (images.length === 0) {
       toast.error('Please upload at least one photo / Загрузите хотя бы одно фото');
-      setIsLoading(false);
       return;
     }
 
-    // Step 3: Save mock OCR text to sessionStorage
-    sessionStorage.setItem('ocrText', MOCK_OCR_TEXT);
-    sessionStorage.setItem('ocrConfidence', 'low');
-    
-    // Also save images for later use
+    // Save images to sessionStorage for OCR processing on next page
     sessionStorage.setItem('materialImages', JSON.stringify(images));
+    
+    // Set flag to trigger OCR on the review page
+    sessionStorage.setItem('pendingOcr', 'true');
 
-    // Step 4: Stop loading
-    setIsLoading(false);
-
-    // Step 5: Navigate to Step 2 page (Review Text)
-    toast.success('Navigating to Review Text...');
+    // Navigate IMMEDIATELY - no loading state here, OCR runs on destination
     navigate('/review-text');
   };
 
@@ -213,20 +193,10 @@ MOCK OCR: Вставьте текст лекции здесь. OCR будет в
             type="button"
             className="w-full"
             size="lg"
-            disabled={isLoading}
             onClick={handleProcessOcr}
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                {t('material.processing')}
-              </>
-            ) : (
-              <>
-                <ArrowRight className="mr-2 h-5 w-5" />
-                {t('common.next')}
-              </>
-            )}
+            <ArrowRight className="mr-2 h-5 w-5" />
+            {t('common.next')}
           </Button>
         )}
 
