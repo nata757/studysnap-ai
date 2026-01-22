@@ -38,7 +38,10 @@ export default function AddMaterial() {
 
 MOCK OCR: Вставьте текст лекции здесь. OCR будет включён позже.`;
 
-  const handleProcessOcr = async () => {
+  const handleProcessOcr = () => {
+    // Debug toast to confirm click is firing
+    toast.info('Clicked!');
+
     // Step 1: Set loading
     setIsLoading(true);
 
@@ -60,7 +63,7 @@ MOCK OCR: Вставьте текст лекции здесь. OCR будет в
     setIsLoading(false);
 
     // Step 5: Navigate to Step 2 page (Review Text)
-    toast.info('Using placeholder text. Edit as needed.');
+    toast.success('Navigating to Review Text...');
     navigate('/review-text');
   };
 
@@ -204,12 +207,13 @@ MOCK OCR: Вставьте текст лекции здесь. OCR будет в
       </main>
 
       {/* Bottom Action */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t z-50">
         {step === 1 && (
           <Button
+            type="button"
             className="w-full"
             size="lg"
-            disabled={!canProceed() || isLoading}
+            disabled={isLoading}
             onClick={handleProcessOcr}
           >
             {isLoading ? (
