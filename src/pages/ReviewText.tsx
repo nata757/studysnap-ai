@@ -1,136 +1,44 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, FileText, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { ConfidenceBadge } from '@/components/ai/ConfidenceBadge';
-import { useOcr } from '@/hooks/useOcr';
 import { toast } from 'sonner';
 
-const PLACEHOLDER_TEXT = `Paste your lecture text here. OCR will be enabled later.
+const PLACEHOLDER_TEXT = `Paste your lecture text here.
 
 ---
 
-Вставьте текст лекции здесь. OCR будет включён позже.`;
+Вставьте текст лекции здесь.`;
 
-const OCR_TIMEOUT_MS = 8000;
+// Initialize draft from sessionStorage or use placeholder
+function getInitialDraft(): string {
+  if (typeof window === 'undefined') return PLACEHOLDER_TEXT;
+  
+  const savedDraft = sessionStorage.getItem('lectureTextDraft');
+  if (savedDraft) return savedDraft;
+  
+  const savedOcrText = sessionStorage.getItem('lectureText');
+  if (savedOcrText) return savedOcrText;
+  
+  return PLACEHOLDER_TEXT;
+}
 
 export default function ReviewText() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { processMultipleImages } = useOcr();
   
-  // Two separate states:
-  // 1. ocrText - holds raw OCR result (read-only after set)
-  // 2. lectureTextDraft - user's editable draft
-  const [ocrText, setOcrText] = useState<string>('');
-  const [lectureTextDraft, setLectureTextDraft] = useState<string>('');
-  const [confidence, setConfidence] = useState<'high' | 'medium' | 'low'>('low');
-  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
-  
-  // Refs to prevent double-execution and track initialization
-  const ocrStartedRef = useRef(false);
-  const draftInitializedRef = useRef(false);
+  // Single state for the user's draft - initialized ONCE, never auto-updated
+  const [lectureTextDraft, setLectureTextDraft] = useState<string>(getInitialDraft);
 
-  // Initialize draft ONCE on mount
-  useEffect(() => {
-    if (draftInitializedRef.current) return;
-    draftInitializedRef.current = true;
-    
-    // Try to load existing draft from sessionStorage first
-    const savedDraft = sessionStorage.getItem('lectureTextDraft');
-    if (savedDraft) {
-      setLectureTextDraft(savedDraft);
-      return;
-    }
-    
-    // Otherwise, use saved OCR text or placeholder
-    const savedOcrText = sessionStorage.getItem('lectureText');
-    if (savedOcrText) {
-      setOcrText(savedOcrText);
-      setLectureTextDraft(savedOcrText);
-    } else {
-      setLectureTextDraft(PLACEHOLDER_TEXT);
-    }
-    
-    const savedConfidence = sessionStorage.getItem('ocrConfidence');
-    if (savedConfidence) {
-      setConfidence(savedConfidence as 'high' | 'medium' | 'low');
-    }
-  }, []);
-
-  // Run OCR in background (updates ocrText but does NOT overwrite lectureTextDraft)
-  useEffect(() => {
-    const runBackgroundOcr = async () => {
-      if (ocrStartedRef.current) return;
-      
-      const pendingOcr = sessionStorage.getItem('pendingOcr');
-      if (pendingOcr !== 'true') return;
-      
-      ocrStartedRef.current = true;
-      sessionStorage.removeItem('pendingOcr');
-      
-      const imagesJson = sessionStorage.getItem('materialImages');
-      if (!imagesJson) return;
-      
-      const images: string[] = JSON.parse(imagesJson);
-      if (images.length === 0) return;
-      
-      setIsProcessingOcr(true);
-      toast.info('Processing images in background...');
-      
-      const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), OCR_TIMEOUT_MS);
-      });
-      
-      try {
-        const result = await Promise.race([
-          processMultipleImages(images),
-          timeoutPromise
-        ]);
-        
-        if (result === null) {
-          toast.warning('OCR timed out');
-        } else if (result && result.text && result.text.trim()) {
-          // Store OCR result
-          setOcrText(result.text);
-          setConfidence(result.confidence);
-          sessionStorage.setItem('lectureText', result.text);
-          sessionStorage.setItem('ocrConfidence', result.confidence);
-          
-          // Only update draft if user hasn't started editing (draft is still placeholder)
-          if (lectureTextDraft === PLACEHOLDER_TEXT || lectureTextDraft === '') {
-            setLectureTextDraft(result.text);
-            sessionStorage.setItem('lectureTextDraft', result.text);
-          } else {
-            // User has edited - show notification instead of overwriting
-            toast.success('OCR completed! Your edits were preserved.');
-          }
-        }
-      } catch (err) {
-        console.error('OCR error:', err);
-        toast.error('OCR failed');
-      } finally {
-        setIsProcessingOcr(false);
-      }
-    };
-    
-    runBackgroundOcr();
-  }, [processMultipleImages, lectureTextDraft]);
-
-  // Handle draft changes - save to sessionStorage with debounce indicator
-  const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setLectureTextDraft(newValue);
-    sessionStorage.setItem('lectureTextDraft', newValue);
-    
-    // Show "Saved locally" indicator
-    setShowSaved(true);
-    setTimeout(() => setShowSaved(false), 1500);
+  // Simple onChange handler - no side effects, no auto-sync
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setLectureTextDraft(value);
+    // Save to sessionStorage for persistence
+    sessionStorage.setItem('lectureTextDraft', value);
   };
 
   const handleBack = () => {
@@ -142,9 +50,7 @@ export default function ReviewText() {
       toast.error('Please enter some text');
       return;
     }
-    // Save the draft as the final lecture text
     sessionStorage.setItem('lectureText', lectureTextDraft);
-    sessionStorage.setItem('ocrConfidence', confidence);
     navigate('/material-details');
   };
 
@@ -179,45 +85,27 @@ export default function ReviewText() {
             <div className="flex-1">
               <h2 className="font-semibold">{t('material.ocrResult')}</h2>
               <p className="text-xs text-muted-foreground">
-                {isProcessingOcr ? 'Processing...' : t('material.editText')}
+                {t('material.editText')}
               </p>
             </div>
-            {isProcessingOcr ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-xs">OCR...</span>
-              </div>
-            ) : (
-              <ConfidenceBadge confidence={confidence} />
-            )}
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="lecture-text" className="sr-only">
-              Lecture Text
-            </Label>
-            <Textarea
-              id="lecture-text"
-              value={lectureTextDraft}
-              onChange={handleDraftChange}
-              placeholder={PLACEHOLDER_TEXT}
-              className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
-              autoFocus
-            />
-          </div>
+          {/* Pure textarea - no auto-updates, no effects, fully editable */}
+          <Textarea
+            value={lectureTextDraft}
+            onChange={handleChange}
+            placeholder={PLACEHOLDER_TEXT}
+            className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+          />
           
-          {/* Character/Word count + Saved indicator */}
+          {/* Character/Word count */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{charCount} characters</span>
-            <div className="flex items-center gap-2">
-              {showSaved && (
-                <span className="flex items-center gap-1 text-primary">
-                  <Check className="h-3 w-3" />
-                  Saved locally
-                </span>
-              )}
-              <span>{wordCount} words</span>
-            </div>
+            <span>{wordCount} words</span>
           </div>
         </div>
       </main>
