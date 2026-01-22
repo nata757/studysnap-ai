@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { ConfidenceBadge } from '@/components/ai/ConfidenceBadge';
 import { useOcr } from '@/hooks/useOcr';
 import { toast } from 'sonner';
 
-const MOCK_LECTURE_TEXT = `Paste your lecture text here. OCR will be enabled later.
+const PLACEHOLDER_TEXT = `Paste your lecture text here. OCR will be enabled later.
 
 ---
 
@@ -23,40 +23,62 @@ export default function ReviewText() {
   const navigate = useNavigate();
   const { processMultipleImages } = useOcr();
   
-  const [lectureText, setLectureText] = useState(MOCK_LECTURE_TEXT);
+  // Two separate states:
+  // 1. ocrText - holds raw OCR result (read-only after set)
+  // 2. lectureTextDraft - user's editable draft
+  const [ocrText, setOcrText] = useState<string>('');
+  const [lectureTextDraft, setLectureTextDraft] = useState<string>('');
   const [confidence, setConfidence] = useState<'high' | 'medium' | 'low'>('low');
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
   
+  // Refs to prevent double-execution and track initialization
   const ocrStartedRef = useRef(false);
+  const draftInitializedRef = useRef(false);
 
-  // Run OCR in background on mount if pending
+  // Initialize draft ONCE on mount
+  useEffect(() => {
+    if (draftInitializedRef.current) return;
+    draftInitializedRef.current = true;
+    
+    // Try to load existing draft from sessionStorage first
+    const savedDraft = sessionStorage.getItem('lectureTextDraft');
+    if (savedDraft) {
+      setLectureTextDraft(savedDraft);
+      return;
+    }
+    
+    // Otherwise, use saved OCR text or placeholder
+    const savedOcrText = sessionStorage.getItem('lectureText');
+    if (savedOcrText) {
+      setOcrText(savedOcrText);
+      setLectureTextDraft(savedOcrText);
+    } else {
+      setLectureTextDraft(PLACEHOLDER_TEXT);
+    }
+    
+    const savedConfidence = sessionStorage.getItem('ocrConfidence');
+    if (savedConfidence) {
+      setConfidence(savedConfidence as 'high' | 'medium' | 'low');
+    }
+  }, []);
+
+  // Run OCR in background (updates ocrText but does NOT overwrite lectureTextDraft)
   useEffect(() => {
     const runBackgroundOcr = async () => {
       if (ocrStartedRef.current) return;
       
       const pendingOcr = sessionStorage.getItem('pendingOcr');
-      if (pendingOcr !== 'true') {
-        const savedText = sessionStorage.getItem('lectureText');
-        const savedConfidence = sessionStorage.getItem('ocrConfidence');
-        if (savedText) setLectureText(savedText);
-        if (savedConfidence) setConfidence(savedConfidence as 'high' | 'medium' | 'low');
-        return;
-      }
+      if (pendingOcr !== 'true') return;
       
       ocrStartedRef.current = true;
       sessionStorage.removeItem('pendingOcr');
       
       const imagesJson = sessionStorage.getItem('materialImages');
-      if (!imagesJson) {
-        toast.info('No images found, using placeholder text');
-        return;
-      }
+      if (!imagesJson) return;
       
       const images: string[] = JSON.parse(imagesJson);
-      if (images.length === 0) {
-        toast.info('No images to process');
-        return;
-      }
+      if (images.length === 0) return;
       
       setIsProcessingOcr(true);
       toast.info('Processing images in background...');
@@ -72,49 +94,62 @@ export default function ReviewText() {
         ]);
         
         if (result === null) {
-          console.log('OCR timeout after', OCR_TIMEOUT_MS, 'ms');
-          toast.warning('OCR timed out - using placeholder text');
+          toast.warning('OCR timed out');
         } else if (result && result.text && result.text.trim()) {
-          setLectureText(result.text);
+          // Store OCR result
+          setOcrText(result.text);
           setConfidence(result.confidence);
           sessionStorage.setItem('lectureText', result.text);
           sessionStorage.setItem('ocrConfidence', result.confidence);
-          toast.success('Text extracted successfully!');
-        } else {
-          toast.info('OCR returned no text - edit manually');
+          
+          // Only update draft if user hasn't started editing (draft is still placeholder)
+          if (lectureTextDraft === PLACEHOLDER_TEXT || lectureTextDraft === '') {
+            setLectureTextDraft(result.text);
+            sessionStorage.setItem('lectureTextDraft', result.text);
+          } else {
+            // User has edited - show notification instead of overwriting
+            toast.success('OCR completed! Your edits were preserved.');
+          }
         }
       } catch (err) {
         console.error('OCR error:', err);
-        toast.error('OCR failed - edit text manually');
+        toast.error('OCR failed');
       } finally {
         setIsProcessingOcr(false);
       }
     };
     
     runBackgroundOcr();
-  }, [processMultipleImages]);
+  }, [processMultipleImages, lectureTextDraft]);
 
-  // Save text to sessionStorage whenever it changes
-  useEffect(() => {
-    sessionStorage.setItem('lectureText', lectureText);
-  }, [lectureText]);
+  // Handle draft changes - save to sessionStorage with debounce indicator
+  const handleDraftChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setLectureTextDraft(newValue);
+    sessionStorage.setItem('lectureTextDraft', newValue);
+    
+    // Show "Saved locally" indicator
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 1500);
+  };
 
   const handleBack = () => {
     navigate('/add-material');
   };
 
   const handleContinue = () => {
-    if (lectureText.trim().length === 0) {
+    if (lectureTextDraft.trim().length === 0) {
       toast.error('Please enter some text');
       return;
     }
-    sessionStorage.setItem('lectureText', lectureText);
+    // Save the draft as the final lecture text
+    sessionStorage.setItem('lectureText', lectureTextDraft);
     sessionStorage.setItem('ocrConfidence', confidence);
     navigate('/material-details');
   };
 
-  const wordCount = lectureText.split(/\s+/).filter(Boolean).length;
-  const charCount = lectureText.length;
+  const wordCount = lectureTextDraft.split(/\s+/).filter(Boolean).length;
+  const charCount = lectureTextDraft.length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -163,17 +198,26 @@ export default function ReviewText() {
             </Label>
             <Textarea
               id="lecture-text"
-              value={lectureText}
-              onChange={(e) => setLectureText(e.target.value)}
-              placeholder={MOCK_LECTURE_TEXT}
+              value={lectureTextDraft}
+              onChange={handleDraftChange}
+              placeholder={PLACEHOLDER_TEXT}
               className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
               autoFocus
             />
           </div>
           
+          {/* Character/Word count + Saved indicator */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{charCount} characters</span>
-            <span>{wordCount} words</span>
+            <div className="flex items-center gap-2">
+              {showSaved && (
+                <span className="flex items-center gap-1 text-primary">
+                  <Check className="h-3 w-3" />
+                  Saved locally
+                </span>
+              )}
+              <span>{wordCount} words</span>
+            </div>
           </div>
         </div>
       </main>
@@ -183,7 +227,7 @@ export default function ReviewText() {
         <Button
           className="w-full"
           size="lg"
-          disabled={lectureText.trim().length === 0}
+          disabled={lectureTextDraft.trim().length === 0}
           onClick={handleContinue}
         >
           <ArrowRight className="mr-2 h-5 w-5" />
