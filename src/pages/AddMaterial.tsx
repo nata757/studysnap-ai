@@ -30,20 +30,26 @@ export default function AddMaterial() {
 
   const progress = (step / 3) * 100;
 
-  const handleProcessOcr = () => {
-    // Validate images first
+  const handleNextClick = (e: React.MouseEvent) => {
+    // Prevent any form submission or event bubbling
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Debug toast - this MUST appear
+    toast.info('Next clicked');
+    console.log('Next button clicked, images:', images.length);
+    
+    // Validate: require at least 1 photo
     if (images.length === 0) {
-      toast.error('Please upload at least one photo / Загрузите хотя бы одно фото');
+      toast.error('Please select at least 1 photo / Выберите хотя бы 1 фото');
       return;
     }
-
-    // Save images to sessionStorage for OCR processing on next page
-    sessionStorage.setItem('materialImages', JSON.stringify(images));
     
-    // Set flag to trigger OCR on the review page
+    // Store photos in sessionStorage
+    sessionStorage.setItem('materialImages', JSON.stringify(images));
     sessionStorage.setItem('pendingOcr', 'true');
-
-    // Navigate IMMEDIATELY - no loading state here, OCR runs on destination
+    
+    // Navigate immediately
     navigate('/review-text');
   };
 
@@ -191,9 +197,9 @@ export default function AddMaterial() {
         {step === 1 && (
           <Button
             type="button"
-            className="w-full"
+            className="w-full pointer-events-auto"
             size="lg"
-            onClick={handleProcessOcr}
+            onClick={handleNextClick}
           >
             <ArrowRight className="mr-2 h-5 w-5" />
             {t('common.next')}
