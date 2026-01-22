@@ -1,0 +1,214 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { material_id, ocr_text, title, topic, count = 8 } = await req.json();
+
+    if (!material_id || !ocr_text) {
+      return new Response(
+        JSON.stringify({ error: 'material_id and ocr_text are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Generating quiz for material:', material_id, 'count:', count);
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const systemPrompt = `You are an AI assistant for medical students preparing for exams.
+Your task is to create multiple-choice quiz questions for exam practice.
+
+CRITICAL RULES:
+1. ONLY use information explicitly stated in the provided text
+2. NEVER invent, assume, or add facts not present in the source
+3. If information is unclear:
+   - Set confidence to "low"
+   - Note in explanation that source was unclear
+4. Create exactly 4 options per question (A, B, C, D)
+5. Make wrong options plausible but clearly incorrect based on the material
+6. Provide clear explanations referencing the source material
+7. Preserve medical terminology exactly as written
+
+Create exactly ${count} questions.`;
+
+    const userPrompt = `Create ${count} multiple-choice quiz questions from this lecture material:
+
+${title ? `Title: ${title}` : ''}
+${topic ? `Topic: ${topic}` : ''}
+
+LECTURE TEXT:
+${ocr_text}`;
+
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "generate_quiz",
+              description: "Generate multiple-choice quiz questions",
+              parameters: {
+                type: "object",
+                properties: {
+                  questions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        question: { type: "string", description: "The question text" },
+                        options: { 
+                          type: "array", 
+                          items: { type: "string" },
+                          description: "Exactly 4 answer options" 
+                        },
+                        correctIndex: { 
+                          type: "number", 
+                          description: "Index of correct answer (0-3)" 
+                        },
+                        explanation: { 
+                          type: "string", 
+                          description: "Why the correct answer is right" 
+                        },
+                        confidence: { 
+                          type: "string", 
+                          enum: ["high", "medium", "low"],
+                          description: "Confidence based on source clarity" 
+                        }
+                      },
+                      required: ["question", "options", "correctIndex", "explanation", "confidence"],
+                      additionalProperties: false
+                    }
+                  },
+                  warnings: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Any issues or unclear content"
+                  }
+                },
+                required: ["questions", "warnings"],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "generate_quiz" } }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI Gateway error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ error: 'Quiz generation failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data = await response.json();
+    console.log('AI response received');
+
+    // Extract tool call result
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall?.function?.arguments) {
+      console.error('No tool call in response:', JSON.stringify(data));
+      return new Response(
+        JSON.stringify({ error: 'Invalid AI response format' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const quizData = JSON.parse(toolCall.function.arguments);
+    console.log('Parsed quiz questions:', quizData.questions?.length);
+
+    // Save to database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Delete existing quiz questions for this material
+    await supabase
+      .from('quiz_questions')
+      .delete()
+      .eq('material_id', material_id);
+
+    // Insert new quiz questions
+    const questionsToInsert = quizData.questions.map((q: any) => ({
+      material_id,
+      question: q.question,
+      options: q.options,
+      correct_index: q.correctIndex,
+      explanation: q.explanation,
+      confidence: q.confidence,
+    }));
+
+    const { data: insertedQuestions, error: insertError } = await supabase
+      .from('quiz_questions')
+      .insert(questionsToInsert)
+      .select();
+
+    if (insertError) {
+      console.error('Database error:', insertError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to save quiz questions' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Quiz questions saved successfully:', insertedQuestions?.length);
+
+    return new Response(
+      JSON.stringify({
+        questions: insertedQuestions,
+        warnings: quizData.warnings || [],
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Generate quiz error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

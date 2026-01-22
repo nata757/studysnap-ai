@@ -55,6 +55,28 @@ interface Summary {
   generated_at: string;
 }
 
+interface Flashcard {
+  id: string;
+  material_id: string;
+  question: string;
+  answer: string;
+  confidence: 'high' | 'medium' | 'low';
+  stage: number;
+  due_date: string;
+  created_at: string;
+}
+
+interface QuizQuestion {
+  id: string;
+  material_id: string;
+  question: string;
+  options: string[];
+  correct_index: number;
+  explanation: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  created_at: string;
+}
+
 interface EditForm {
   title: string;
   topic: Topic;
@@ -107,6 +129,18 @@ export default function LectureDetail() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryLevel, setSummaryLevel] = useState<SummaryLevel>('short');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+  // Flashcards state
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flashcardWarnings, setFlashcardWarnings] = useState<string[]>([]);
+
+  // Quiz state
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [quizWarnings, setQuizWarnings] = useState<string[]>([]);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
+  const [showQuizResults, setShowQuizResults] = useState(false);
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -424,6 +458,41 @@ export default function LectureDetail() {
     }
   };
 
+  // Fetch existing flashcards
+  const fetchFlashcards = async () => {
+    if (!id) return;
+    
+    const { data } = await supabase
+      .from('flashcards')
+      .select('*')
+      .eq('material_id', id)
+      .order('created_at', { ascending: true });
+    
+    if (data) {
+      setFlashcards(data as Flashcard[]);
+    }
+  };
+
+  // Fetch existing quiz questions
+  const fetchQuizQuestions = async () => {
+    if (!id) return;
+    
+    const { data } = await supabase
+      .from('quiz_questions')
+      .select('*')
+      .eq('material_id', id)
+      .order('created_at', { ascending: true });
+    
+    if (data) {
+      // Parse options from JSON if needed
+      const parsed = data.map(q => ({
+        ...q,
+        options: Array.isArray(q.options) ? q.options : JSON.parse(q.options as string),
+      })) as QuizQuestion[];
+      setQuizQuestions(parsed);
+    }
+  };
+
   // Generate summary using AI
   const handleGenerateSummary = async () => {
     if (!material || !material.ocr_text || !id) {
@@ -464,6 +533,120 @@ export default function LectureDetail() {
     }
   };
 
+  // Generate flashcards using AI
+  const handleGenerateFlashcards = async () => {
+    if (!material || !material.ocr_text || !id) {
+      toast.error('No text available to generate flashcards');
+      return;
+    }
+
+    setIsGeneratingFlashcards(true);
+    
+    try {
+      const response = await supabase.functions.invoke('generate-flashcards', {
+        body: {
+          material_id: id,
+          ocr_text: material.ocr_text,
+          title: material.title,
+          topic: material.topic,
+          count: 15,
+        },
+      });
+
+      if (response.error) {
+        console.error('Flashcards error:', response.error);
+        toast.error(response.error.message || 'Failed to generate flashcards');
+        return;
+      }
+
+      if (response.data?.error) {
+        toast.error(response.data.error);
+        return;
+      }
+
+      setFlashcards(response.data.flashcards);
+      setFlashcardWarnings(response.data.warnings || []);
+      toast.success(`${response.data.flashcards.length} flashcards generated!`);
+    } catch (err) {
+      console.error('Generate flashcards error:', err);
+      toast.error('Failed to generate flashcards');
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
+
+  // Generate quiz using AI
+  const handleGenerateQuiz = async () => {
+    if (!material || !material.ocr_text || !id) {
+      toast.error('No text available to generate quiz');
+      return;
+    }
+
+    setIsGeneratingQuiz(true);
+    setQuizAnswers({});
+    setShowQuizResults(false);
+    
+    try {
+      const response = await supabase.functions.invoke('generate-quiz', {
+        body: {
+          material_id: id,
+          ocr_text: material.ocr_text,
+          title: material.title,
+          topic: material.topic,
+          count: 8,
+        },
+      });
+
+      if (response.error) {
+        console.error('Quiz error:', response.error);
+        toast.error(response.error.message || 'Failed to generate quiz');
+        return;
+      }
+
+      if (response.data?.error) {
+        toast.error(response.data.error);
+        return;
+      }
+
+      setQuizQuestions(response.data.questions);
+      setQuizWarnings(response.data.warnings || []);
+      toast.success(`${response.data.questions.length} quiz questions generated!`);
+    } catch (err) {
+      console.error('Generate quiz error:', err);
+      toast.error('Failed to generate quiz');
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
+
+  // Handle quiz answer selection
+  const handleQuizAnswer = (questionId: string, optionIndex: number) => {
+    if (showQuizResults) return; // Don't allow changes after submitting
+    setQuizAnswers(prev => ({ ...prev, [questionId]: optionIndex }));
+  };
+
+  // Submit quiz
+  const handleSubmitQuiz = () => {
+    setShowQuizResults(true);
+  };
+
+  // Reset quiz
+  const handleResetQuiz = () => {
+    setQuizAnswers({});
+    setShowQuizResults(false);
+  };
+
+  // Calculate quiz score
+  const getQuizScore = () => {
+    let correct = 0;
+    quizQuestions.forEach(q => {
+      if (quizAnswers[q.id] === q.correct_index) {
+        correct++;
+      }
+    });
+    return { correct, total: quizQuestions.length };
+  };
+
   useEffect(() => {
     const fetchMaterial = async () => {
       if (!id || !user) {
@@ -500,6 +683,8 @@ export default function LectureDetail() {
 
     fetchMaterial();
     fetchSummary();
+    fetchFlashcards();
+    fetchQuizQuestions();
   }, [id, user]);
 
   // Redirect to home if material not found (after loading completes)
@@ -639,18 +824,21 @@ export default function LectureDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="text" className="w-full">
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="text" className="flex items-center gap-2">
+          <TabsList className="w-full grid grid-cols-5">
+            <TabsTrigger value="text" className="text-xs px-2">
               <FileText className="h-4 w-4" />
-              Text
             </TabsTrigger>
-            <TabsTrigger value="summary" className="flex items-center gap-2">
+            <TabsTrigger value="summary" className="text-xs px-2">
               <Sparkles className="h-4 w-4" />
-              Summary
             </TabsTrigger>
-            <TabsTrigger value="photos" className="flex items-center gap-2">
+            <TabsTrigger value="flashcards" className="text-xs px-2">
+              <BookOpen className="h-4 w-4" />
+            </TabsTrigger>
+            <TabsTrigger value="quiz" className="text-xs px-2">
+              <HelpCircle className="h-4 w-4" />
+            </TabsTrigger>
+            <TabsTrigger value="photos" className="text-xs px-2">
               <Image className="h-4 w-4" />
-              Photos
             </TabsTrigger>
           </TabsList>
 
@@ -746,6 +934,212 @@ export default function LectureDetail() {
                     <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
                       No summary yet. Use the AI Study Tools below to generate one.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="flashcards" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Flashcards</CardTitle>
+                  {flashcards.length > 0 && (
+                    <Badge variant="secondary">{flashcards.length} cards</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isGeneratingFlashcards ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Generating flashcards...</p>
+                  </div>
+                ) : flashcards.length > 0 ? (
+                  <>
+                    {/* Warnings */}
+                    {flashcardWarnings.length > 0 && (
+                      <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                        <div className="flex items-center gap-2 text-warning text-sm font-medium">
+                          <Info className="h-4 w-4" />
+                          Notes
+                        </div>
+                        <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
+                          {flashcardWarnings.map((warning, idx) => (
+                            <li key={idx}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Start review button */}
+                    <Button 
+                      className="w-full"
+                      onClick={() => navigate('/review')}
+                    >
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Start Review
+                    </Button>
+                    
+                    {/* Flashcards list */}
+                    <div className="space-y-3">
+                      {flashcards.map((card, idx) => (
+                        <Card key={card.id} className="border-l-4" style={{
+                          borderLeftColor: card.confidence === 'high' ? 'hsl(var(--primary))' : 
+                            card.confidence === 'medium' ? 'hsl(var(--warning))' : 'hsl(var(--destructive))'
+                        }}>
+                          <CardContent className="py-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-medium">{idx + 1}. {card.question}</p>
+                              <Badge 
+                                variant={card.confidence === 'high' ? 'default' : 
+                                  card.confidence === 'medium' ? 'secondary' : 'destructive'}
+                                className="text-xs shrink-0"
+                              >
+                                {card.confidence}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{card.answer}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 space-y-3">
+                    <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      No flashcards yet. Use the AI Study Tools below to generate them.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="quiz" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Quiz</CardTitle>
+                  {showQuizResults && (
+                    <Badge variant={getQuizScore().correct === getQuizScore().total ? 'default' : 'secondary'}>
+                      {getQuizScore().correct}/{getQuizScore().total} correct
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isGeneratingQuiz ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Generating quiz...</p>
+                  </div>
+                ) : quizQuestions.length > 0 ? (
+                  <>
+                    {/* Warnings */}
+                    {quizWarnings.length > 0 && (
+                      <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
+                        <div className="flex items-center gap-2 text-warning text-sm font-medium">
+                          <Info className="h-4 w-4" />
+                          Notes
+                        </div>
+                        <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
+                          {quizWarnings.map((warning, idx) => (
+                            <li key={idx}>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Quiz questions */}
+                    <div className="space-y-6">
+                      {quizQuestions.map((q, qIdx) => (
+                        <div key={q.id} className="space-y-3">
+                          <div className="flex items-start gap-2">
+                            <span className="font-medium text-sm">{qIdx + 1}.</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{q.question}</p>
+                              {q.confidence !== 'high' && (
+                                <Badge 
+                                  variant={q.confidence === 'medium' ? 'secondary' : 'destructive'}
+                                  className="text-xs mt-1"
+                                >
+                                  {q.confidence} confidence
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="space-y-2 ml-5">
+                            {q.options.map((option, optIdx) => {
+                              const isSelected = quizAnswers[q.id] === optIdx;
+                              const isCorrect = q.correct_index === optIdx;
+                              const showResult = showQuizResults;
+                              
+                              let optionClass = "w-full justify-start text-left h-auto py-2 px-3";
+                              if (showResult) {
+                                if (isCorrect) {
+                                  optionClass += " bg-green-500/20 border-green-500 text-green-700 dark:text-green-300";
+                                } else if (isSelected && !isCorrect) {
+                                  optionClass += " bg-destructive/20 border-destructive text-destructive";
+                                }
+                              } else if (isSelected) {
+                                optionClass += " bg-primary/10 border-primary";
+                              }
+                              
+                              return (
+                                <Button
+                                  key={optIdx}
+                                  variant="outline"
+                                  className={optionClass}
+                                  onClick={() => handleQuizAnswer(q.id, optIdx)}
+                                  disabled={showQuizResults}
+                                >
+                                  <span className="font-medium mr-2">{String.fromCharCode(65 + optIdx)}.</span>
+                                  <span className="flex-1">{option}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          {/* Explanation after submit */}
+                          {showQuizResults && q.explanation && (
+                            <div className="ml-5 p-3 rounded-lg bg-muted text-sm">
+                              <p className="font-medium text-xs text-muted-foreground mb-1">Explanation:</p>
+                              <p>{q.explanation}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Submit/Reset buttons */}
+                    <div className="flex gap-3">
+                      {!showQuizResults ? (
+                        <Button 
+                          className="flex-1"
+                          onClick={handleSubmitQuiz}
+                          disabled={Object.keys(quizAnswers).length !== quizQuestions.length}
+                        >
+                          Submit Quiz
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline"
+                          className="flex-1"
+                          onClick={handleResetQuiz}
+                        >
+                          Try Again
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 space-y-3">
+                    <HelpCircle className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      No quiz yet. Use the AI Study Tools below to generate one.
                     </p>
                   </div>
                 )}
@@ -875,18 +1269,32 @@ export default function LectureDetail() {
                 <Button
                   variant="outline"
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => toast.info('Flashcard generation coming soon!')}
+                  onClick={handleGenerateFlashcards}
+                  disabled={isGeneratingFlashcards}
                 >
-                  <BookOpen className="h-5 w-5 text-primary" />
-                  <span className="text-xs font-medium">Flashcards</span>
+                  {isGeneratingFlashcards ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  ) : (
+                    <BookOpen className="h-5 w-5 text-primary" />
+                  )}
+                  <span className="text-xs font-medium">
+                    {isGeneratingFlashcards ? 'Generating...' : 'Flashcards'}
+                  </span>
                 </Button>
                 <Button
                   variant="outline"
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => toast.info('Quiz generation coming soon!')}
+                  onClick={handleGenerateQuiz}
+                  disabled={isGeneratingQuiz}
                 >
-                  <HelpCircle className="h-5 w-5 text-primary" />
-                  <span className="text-xs font-medium">Quiz</span>
+                  {isGeneratingQuiz ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  ) : (
+                    <HelpCircle className="h-5 w-5 text-primary" />
+                  )}
+                  <span className="text-xs font-medium">
+                    {isGeneratingQuiz ? 'Generating...' : 'Quiz'}
+                  </span>
                 </Button>
               </div>
 
