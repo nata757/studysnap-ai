@@ -50,13 +50,16 @@ export interface QuizQuestion {
   created_at: string;
 }
 
-export type Topic = 
-  | 'Anatomie'
-  | 'Hygiene'
-  | 'Pflegepraxis'
-  | 'Recht/Ethik'
-  | 'Medikamente'
-  | 'Sonstiges';
+export const TOPICS = [
+  'Anatomie',
+  'Hygiene',
+  'Pflegepraxis',
+  'Recht/Ethik',
+  'Medikamente',
+  'Sonstiges',
+] as const;
+
+export type Topic = typeof TOPICS[number];
 
 export type SummaryLevel = 'short' | 'medium' | 'long';
 

@@ -10,11 +10,11 @@ import { ConfidenceBadge } from '@/components/ai/ConfidenceBadge';
 import { useOcr } from '@/hooks/useOcr';
 import { toast } from 'sonner';
 
-const MOCK_OCR_TEXT = `MOCK OCR: Paste your lecture text here. OCR will be enabled later.
+const MOCK_LECTURE_TEXT = `Paste your lecture text here. OCR will be enabled later.
 
 ---
 
-MOCK OCR: Вставьте текст лекции здесь. OCR будет включён позже.`;
+Вставьте текст лекции здесь. OCR будет включён позже.`;
 
 const OCR_TIMEOUT_MS = 8000;
 
@@ -23,7 +23,7 @@ export default function ReviewText() {
   const navigate = useNavigate();
   const { processMultipleImages } = useOcr();
   
-  const [ocrText, setOcrText] = useState(MOCK_OCR_TEXT);
+  const [lectureText, setLectureText] = useState(MOCK_LECTURE_TEXT);
   const [confidence, setConfidence] = useState<'high' | 'medium' | 'low'>('low');
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   
@@ -32,15 +32,13 @@ export default function ReviewText() {
   // Run OCR in background on mount if pending
   useEffect(() => {
     const runBackgroundOcr = async () => {
-      // Prevent double-execution
       if (ocrStartedRef.current) return;
       
       const pendingOcr = sessionStorage.getItem('pendingOcr');
       if (pendingOcr !== 'true') {
-        // Load any saved text from previous visit
-        const savedText = sessionStorage.getItem('ocrText');
+        const savedText = sessionStorage.getItem('lectureText');
         const savedConfidence = sessionStorage.getItem('ocrConfidence');
-        if (savedText) setOcrText(savedText);
+        if (savedText) setLectureText(savedText);
         if (savedConfidence) setConfidence(savedConfidence as 'high' | 'medium' | 'low');
         return;
       }
@@ -63,38 +61,32 @@ export default function ReviewText() {
       setIsProcessingOcr(true);
       toast.info('Processing images in background...');
       
-      // Create timeout promise
       const timeoutPromise = new Promise<null>((resolve) => {
         setTimeout(() => resolve(null), OCR_TIMEOUT_MS);
       });
       
       try {
-        // Race OCR against timeout
         const result = await Promise.race([
           processMultipleImages(images),
           timeoutPromise
         ]);
         
         if (result === null) {
-          // Timeout occurred
           console.log('OCR timeout after', OCR_TIMEOUT_MS, 'ms');
           toast.warning('OCR timed out - using placeholder text');
         } else if (result && result.text && result.text.trim()) {
-          // OCR succeeded
-          setOcrText(result.text);
+          setLectureText(result.text);
           setConfidence(result.confidence);
-          sessionStorage.setItem('ocrText', result.text);
+          sessionStorage.setItem('lectureText', result.text);
           sessionStorage.setItem('ocrConfidence', result.confidence);
           toast.success('Text extracted successfully!');
         } else {
-          // OCR returned empty
           toast.info('OCR returned no text - edit manually');
         }
       } catch (err) {
         console.error('OCR error:', err);
         toast.error('OCR failed - edit text manually');
       } finally {
-        // ALWAYS reset loading state
         setIsProcessingOcr(false);
       }
     };
@@ -104,32 +96,32 @@ export default function ReviewText() {
 
   // Save text to sessionStorage whenever it changes
   useEffect(() => {
-    sessionStorage.setItem('ocrText', ocrText);
-  }, [ocrText]);
+    sessionStorage.setItem('lectureText', lectureText);
+  }, [lectureText]);
 
   const handleBack = () => {
     navigate('/add-material');
   };
 
   const handleContinue = () => {
-    sessionStorage.setItem('ocrText', ocrText);
+    if (lectureText.trim().length === 0) {
+      toast.error('Please enter some text');
+      return;
+    }
+    sessionStorage.setItem('lectureText', lectureText);
     sessionStorage.setItem('ocrConfidence', confidence);
-    navigate('/add-material?step=3');
+    navigate('/material-details');
   };
 
-  const wordCount = ocrText.split(/\s+/).filter(Boolean).length;
-  const charCount = ocrText.length;
+  const wordCount = lectureText.split(/\s+/).filter(Boolean).length;
+  const charCount = lectureText.length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background border-b px-4 py-3">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleBack}
-          >
+          <Button variant="ghost" size="icon" onClick={handleBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
@@ -145,7 +137,6 @@ export default function ReviewText() {
       {/* Content */}
       <main className="flex-1 p-4 pb-24">
         <div className="space-y-4">
-          {/* Section Header */}
           <div className="flex items-center gap-3 pb-2 border-b">
             <div className="p-2 bg-primary/10 rounded-lg">
               <FileText className="h-5 w-5 text-primary" />
@@ -166,22 +157,20 @@ export default function ReviewText() {
             )}
           </div>
           
-          {/* Editable Textarea */}
           <div className="space-y-2">
-            <Label htmlFor="ocr-text" className="sr-only">
-              {t('material.ocrResult')}
+            <Label htmlFor="lecture-text" className="sr-only">
+              Lecture Text
             </Label>
             <Textarea
-              id="ocr-text"
-              value={ocrText}
-              onChange={(e) => setOcrText(e.target.value)}
-              placeholder={MOCK_OCR_TEXT}
+              id="lecture-text"
+              value={lectureText}
+              onChange={(e) => setLectureText(e.target.value)}
+              placeholder={MOCK_LECTURE_TEXT}
               className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
               autoFocus
             />
           </div>
           
-          {/* Character/Word count */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{charCount} characters</span>
             <span>{wordCount} words</span>
@@ -189,12 +178,12 @@ export default function ReviewText() {
         </div>
       </main>
 
-      {/* Bottom Action - ALWAYS visible and functional */}
+      {/* Bottom Action */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t">
         <Button
           className="w-full"
           size="lg"
-          disabled={ocrText.trim().length === 0}
+          disabled={lectureText.trim().length === 0}
           onClick={handleContinue}
         >
           <ArrowRight className="mr-2 h-5 w-5" />

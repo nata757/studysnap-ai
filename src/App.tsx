@@ -12,6 +12,8 @@ import Review from "./pages/Review";
 import Profile from "./pages/Profile";
 import AddMaterial from "./pages/AddMaterial";
 import ReviewText from "./pages/ReviewText";
+import MaterialDetails from "./pages/MaterialDetails";
+import LectureDetail from "./pages/LectureDetail";
 import NotFound from "./pages/NotFound";
 import "@/i18n";
 
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
             <Route path="/add-material" element={<AuthGuard><AddMaterial /></AuthGuard>} />
             <Route path="/review-text" element={<AuthGuard><ReviewText /></AuthGuard>} />
+            <Route path="/material-details" element={<AuthGuard><MaterialDetails /></AuthGuard>} />
+            <Route path="/lecture/:id" element={<AuthGuard><LectureDetail /></AuthGuard>} />
             <Route path="/search" element={<AuthGuard><Search /></AuthGuard>} />
             <Route path="/review" element={<AuthGuard><Review /></AuthGuard>} />
             <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
