@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { ImageLightbox } from '@/components/materials/ImageLightbox';
 
 interface Material {
   id: string;
@@ -30,6 +31,13 @@ export default function LectureDetail() {
   const [material, setMaterial] = useState<Material | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
 
   useEffect(() => {
     const fetchMaterial = async () => {
@@ -163,17 +171,34 @@ export default function LectureDetail() {
 
           <TabsContent value="photos" className="mt-4">
             {material.images && material.images.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {material.images.map((url, idx) => (
-                  <Card key={idx} className="overflow-hidden">
-                    <img
-                      src={url}
-                      alt={`Photo ${idx + 1}`}
-                      className="w-full h-40 object-cover"
-                    />
-                  </Card>
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {material.images.map((url, idx) => (
+                    <Card 
+                      key={idx} 
+                      className="overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+                      onClick={() => openLightbox(idx)}
+                    >
+                      <div className="relative">
+                        <img
+                          src={url}
+                          alt={`Photo ${idx + 1}`}
+                          className="w-full h-40 object-cover pointer-events-none"
+                        />
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-3">
+                  Tap to zoom
+                </p>
+                <ImageLightbox
+                  images={material.images}
+                  initialIndex={lightboxIndex}
+                  isOpen={lightboxOpen}
+                  onClose={() => setLightboxOpen(false)}
+                />
+              </>
             ) : (
               <Card>
                 <CardContent className="py-8 text-center">
