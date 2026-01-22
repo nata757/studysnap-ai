@@ -10,10 +10,10 @@ export interface Material {
   user_id: string;
   title: string | null;
   topic: string;
-  tags: string[];
+  tags: string[] | null;
   ocr_text: string | null;
   notes: string | null;
-  images: string[];
+  images: string[] | null;
   created_at: string;
   updated_at: string;
 }
