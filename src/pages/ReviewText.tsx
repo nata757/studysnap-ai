@@ -13,49 +13,31 @@ const PLACEHOLDER_TEXT = `Paste your lecture text here.
 
 Вставьте текст лекции здесь.`;
 
-// Initialize draft from sessionStorage or use placeholder
-function getInitialDraft(): string {
-  if (typeof window === 'undefined') return PLACEHOLDER_TEXT;
-  
-  const savedDraft = sessionStorage.getItem('lectureTextDraft');
-  if (savedDraft) return savedDraft;
-  
-  const savedOcrText = sessionStorage.getItem('lectureText');
-  if (savedOcrText) return savedOcrText;
-  
-  return PLACEHOLDER_TEXT;
-}
-
 export default function ReviewText() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   
-  // Single state for the user's draft - initialized ONCE, never auto-updated
-  const [lectureTextDraft, setLectureTextDraft] = useState<string>(getInitialDraft);
-
-  // Simple onChange handler - no side effects, no auto-sync
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setLectureTextDraft(value);
-    // Save to sessionStorage for persistence
-    sessionStorage.setItem('lectureTextDraft', value);
-  };
+  // Simple state - initialized once, never auto-updated
+  const [lectureText, setLectureText] = useState<string>(() => {
+    if (typeof window === 'undefined') return PLACEHOLDER_TEXT;
+    return sessionStorage.getItem('lectureText') || PLACEHOLDER_TEXT;
+  });
 
   const handleBack = () => {
     navigate('/add-material');
   };
 
   const handleContinue = () => {
-    if (lectureTextDraft.trim().length === 0) {
+    if (lectureText.trim().length === 0) {
       toast.error('Please enter some text');
       return;
     }
-    sessionStorage.setItem('lectureText', lectureTextDraft);
+    sessionStorage.setItem('lectureText', lectureText);
     navigate('/material-details');
   };
 
-  const wordCount = lectureTextDraft.split(/\s+/).filter(Boolean).length;
-  const charCount = lectureTextDraft.length;
+  const wordCount = lectureText.split(/\s+/).filter(Boolean).length;
+  const charCount = lectureText.length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -90,16 +72,12 @@ export default function ReviewText() {
             </div>
           </div>
           
-          {/* Pure textarea - no auto-updates, no effects, fully editable */}
+          {/* Simple editable textarea */}
           <Textarea
-            value={lectureTextDraft}
-            onChange={handleChange}
+            value={lectureText}
+            onChange={(e) => setLectureText(e.target.value)}
             placeholder={PLACEHOLDER_TEXT}
             className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
-            spellCheck={false}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
           />
           
           {/* Character/Word count */}
@@ -115,7 +93,7 @@ export default function ReviewText() {
         <Button
           className="w-full"
           size="lg"
-          disabled={lectureTextDraft.trim().length === 0}
+          disabled={lectureText.trim().length === 0}
           onClick={handleContinue}
         >
           <ArrowRight className="mr-2 h-5 w-5" />
