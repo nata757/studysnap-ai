@@ -158,7 +158,13 @@ export default function MaterialDetails() {
       sessionStorage.removeItem('pendingOcr');
 
       toast.success('Material saved successfully!');
-      navigate(`/lecture/${material.id}`);
+      
+      // Safe navigation with fallback to home
+      try {
+        navigate(`/lecture/${material.id}`, { replace: true });
+      } catch {
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       console.error('Save error:', err);
       toast.error('An unexpected error occurred. Please try again.');

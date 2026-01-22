@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Material {
   id: string;
@@ -67,33 +68,19 @@ export default function LectureDetail() {
     fetchMaterial();
   }, [id, user]);
 
-  if (isLoading) {
+  // Redirect to home if material not found (after loading completes)
+  useEffect(() => {
+    if (!isLoading && (error || !material)) {
+      toast.error(error || 'Material not found');
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, error, material, navigate]);
+
+  // Show loading or redirecting state
+  if (isLoading || error || !material) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error || !material) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="sticky top-0 z-10 bg-background border-b px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="font-semibold">Error</h1>
-          </div>
-        </header>
-        <main className="flex-1 p-4 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-muted-foreground">{error || 'Material not found'}</p>
-            <Button className="mt-4" onClick={() => navigate('/')}>
-              Go Home
-            </Button>
-          </div>
-        </main>
       </div>
     );
   }
