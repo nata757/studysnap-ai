@@ -49,16 +49,19 @@ MOCK OCR: Вставьте текст лекции здесь. OCR будет в
       return;
     }
 
-    // Step 3: Set mock OCR text (real OCR will be enabled later)
-    setOcrText(MOCK_OCR_TEXT);
-    setOcrConfidence('low');
+    // Step 3: Save mock OCR text to sessionStorage
+    sessionStorage.setItem('ocrText', MOCK_OCR_TEXT);
+    sessionStorage.setItem('ocrConfidence', 'low');
+    
+    // Also save images for later use
+    sessionStorage.setItem('materialImages', JSON.stringify(images));
 
     // Step 4: Stop loading
     setIsLoading(false);
 
-    // Step 5: Navigate to Step 2 (Review Text)
-    setStep(2);
+    // Step 5: Navigate to Step 2 page (Review Text)
     toast.info('Using placeholder text. Edit as needed.');
+    navigate('/review-text');
   };
 
   const handleSave = async () => {
