@@ -5,6 +5,12 @@ export interface Profile {
   created_at: string;
 }
 
+export interface PhotoData {
+  url: string;
+  path: string | null;
+  createdAt: string;
+}
+
 export interface Material {
   id: string;
   user_id: string;
@@ -13,7 +19,8 @@ export interface Material {
   tags: string[] | null;
   ocr_text: string | null;
   notes: string | null;
-  images: string[] | null;
+  images: string[] | null; // Legacy - keep for backward compatibility
+  photos: PhotoData[] | null; // New structure with paths
   created_at: string;
   updated_at: string;
 }

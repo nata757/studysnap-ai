@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { TOPICS, Topic } from '@/lib/types';
+import { TOPICS, Topic, PhotoData } from '@/lib/types';
+import { uploadPhoto, createDraftMaterial } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export default function MaterialDetails() {
@@ -92,58 +93,39 @@ export default function MaterialDetails() {
       const imagesJson = sessionStorage.getItem('materialImages');
       const images: string[] = imagesJson ? JSON.parse(imagesJson) : [];
 
-      // Upload images to storage
-      const photoUrls: string[] = [];
+      // Create draft material first to get materialId
+      const materialId = await createDraftMaterial(user.id, topic);
+      if (!materialId) {
+        toast.error('Failed to create material');
+        setIsSaving(false);
+        return;
+      }
+
+      // Upload images with proper path structure
+      const photos: PhotoData[] = [];
       
-      for (let i = 0; i < images.length; i++) {
-        const base64Data = images[i].split(',')[1];
-        if (!base64Data) continue;
-        
-        const fileName = `${user.id}/${Date.now()}_${i}.jpg`;
-        
-        // Convert base64 to blob
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let j = 0; j < byteCharacters.length; j++) {
-          byteNumbers[j] = byteCharacters.charCodeAt(j);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'image/jpeg' });
-
-        const { error: uploadError } = await supabase.storage
-          .from('materials')
-          .upload(fileName, blob);
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          continue;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('materials')
-          .getPublicUrl(fileName);
-
-        if (urlData?.publicUrl) {
-          photoUrls.push(urlData.publicUrl);
+      for (const base64Image of images) {
+        const photoData = await uploadPhoto(base64Image, user.id, materialId);
+        if (photoData) {
+          photos.push(photoData);
         }
       }
 
-      // Create material record in database
-      const { data: material, error: dbError } = await supabase
+      // Update material with all data
+      const { error: updateError } = await supabase
         .from('materials')
-        .insert({
-          user_id: user.id,
+        .update({
           title: title.trim(),
           topic,
           tags: tags.length > 0 ? tags : null,
           ocr_text: lectureText,
-          images: photoUrls.length > 0 ? photoUrls : null,
+          images: photos.map(p => p.url), // Keep legacy images array for compatibility
+          photos, // New structure with paths
         })
-        .select()
-        .single();
+        .eq('id', materialId);
 
-      if (dbError) {
-        console.error('Database error:', dbError);
+      if (updateError) {
+        console.error('Database error:', updateError);
         toast.error('Failed to save material. Please try again.');
         return;
       }
@@ -159,12 +141,8 @@ export default function MaterialDetails() {
 
       toast.success('Material saved successfully!');
       
-      // Safe navigation with fallback to home
-      try {
-        navigate(`/lecture/${material.id}`, { replace: true });
-      } catch {
-        navigate('/', { replace: true });
-      }
+      // Navigate to the new material
+      navigate(`/lecture/${materialId}`, { replace: true });
     } catch (err) {
       console.error('Save error:', err);
       toast.error('An unexpected error occurred. Please try again.');
