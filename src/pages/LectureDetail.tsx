@@ -33,6 +33,19 @@ import { ImageLightbox } from '@/components/materials/ImageLightbox';
 import { TOPICS } from '@/lib/constants';
 import { Topic, PhotoData } from '@/lib/types';
 import { deletePhoto, deletePhotosWithResults, uploadPhoto } from '@/lib/storage';
+import { 
+  parseTranslationData, 
+  serializeTranslationData, 
+  TranslationData, 
+  SupportedLanguage,
+  getTextInLanguage,
+  hasTranslation,
+  getAvailableLanguages,
+  LANGUAGE_NAMES,
+  setTranslation,
+  createTranslationData,
+  detectSourceLanguage
+} from '@/lib/translations';
 
 interface Material {
   id: string;
@@ -40,6 +53,7 @@ interface Material {
   topic: string;
   tags: string[] | null;
   ocr_text: string | null;
+  notes: string | null; // Stores translation data as JSON
   images: string[] | null; // Legacy
   photos: PhotoData[] | null; // New structure
   created_at: string | null;
@@ -141,6 +155,11 @@ export default function LectureDetail() {
   const [quizWarnings, setQuizWarnings] = useState<string[]>([]);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
+
+  // Translation state
+  const [translationData, setTranslationData] = useState<TranslationData | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('ru');
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -647,6 +666,67 @@ export default function LectureDetail() {
     return { correct, total: quizQuestions.length };
   };
 
+  // Translate text to selected language
+  const handleTranslate = async (targetLang: SupportedLanguage) => {
+    if (!material || !translationData || !id) {
+      toast.error('No text available to translate');
+      return;
+    }
+
+    // Don't translate if already exists
+    if (hasTranslation(translationData, targetLang)) {
+      setSelectedLanguage(targetLang);
+      return;
+    }
+
+    setIsTranslating(true);
+    
+    try {
+      const response = await supabase.functions.invoke('translate-text', {
+        body: {
+          text: translationData.originalText,
+          sourceLanguage: translationData.sourceLanguage,
+          targetLanguage: targetLang,
+        },
+      });
+
+      if (response.error) {
+        console.error('Translation error:', response.error);
+        toast.error(response.error.message || 'Failed to translate');
+        return;
+      }
+
+      if (response.data?.error) {
+        toast.error(response.data.error);
+        return;
+      }
+
+      const translatedText = response.data.translatedText;
+      
+      // Update translation data
+      const updatedData = setTranslation(translationData, targetLang, translatedText);
+      setTranslationData(updatedData);
+      setSelectedLanguage(targetLang);
+
+      // Persist to database
+      const { error: updateError } = await supabase
+        .from('materials')
+        .update({ notes: serializeTranslationData(updatedData) })
+        .eq('id', id);
+
+      if (updateError) {
+        console.warn('Failed to save translation:', updateError);
+      }
+
+      toast.success(`Translated to ${LANGUAGE_NAMES[targetLang]}`);
+    } catch (err) {
+      console.error('Translate error:', err);
+      toast.error('Failed to translate text');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   useEffect(() => {
     const fetchMaterial = async () => {
       if (!id || !user) {
@@ -673,6 +753,17 @@ export default function LectureDetail() {
         }
 
         setMaterial(data);
+        
+        // Parse translation data from notes field
+        const parsed = parseTranslationData(data.notes);
+        if (parsed) {
+          setTranslationData(parsed);
+        } else if (data.ocr_text) {
+          // Initialize translation data from ocr_text if notes is empty
+          const sourceLanguage = detectSourceLanguage(data.ocr_text);
+          const newTranslationData = createTranslationData(data.ocr_text, sourceLanguage);
+          setTranslationData(newTranslationData);
+        }
       } catch (err) {
         console.error('Error:', err);
         setError('An unexpected error occurred');
@@ -844,8 +935,42 @@ export default function LectureDetail() {
 
           <TabsContent value="text" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Lecture Text</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Lecture Text</CardTitle>
+                  {!isEditing && translationData && (
+                    <div className="flex gap-1">
+                      {(['ru', 'de', 'en'] as const).map((lang) => {
+                        const available = hasTranslation(translationData, lang);
+                        const isSource = translationData.sourceLanguage === lang;
+                        return (
+                          <Button
+                            key={lang}
+                            variant={selectedLanguage === lang ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => available ? setSelectedLanguage(lang) : handleTranslate(lang)}
+                            disabled={isTranslating}
+                            className="text-xs uppercase"
+                          >
+                            {isTranslating && !available && selectedLanguage !== lang ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                {lang}
+                                {isSource && <span className="ml-1 opacity-50">•</span>}
+                              </>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {!isEditing && translationData && selectedLanguage !== translationData.sourceLanguage && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Translated from {LANGUAGE_NAMES[translationData.sourceLanguage]}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {isEditing ? (
@@ -858,6 +983,15 @@ export default function LectureDetail() {
                     autoCorrect="off"
                     autoCapitalize="off"
                   />
+                ) : isTranslating ? (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Translating...</p>
+                  </div>
+                ) : translationData ? (
+                  <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                    {getTextInLanguage(translationData, selectedLanguage)}
+                  </pre>
                 ) : material.ocr_text ? (
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                     {material.ocr_text}
