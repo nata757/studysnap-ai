@@ -65,7 +65,7 @@ export default function Index() {
   }, [user, profile]);
 
   return (
-    <AppLayout>
+    <AppLayout showLanguageSwitcher>
       <div className="space-y-6">
         {/* Review Today Block */}
         <Card className="bg-primary/5 border-primary/20">

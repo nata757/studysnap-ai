@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,27 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { LogOut, Globe, BookOpen, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 import i18n from '@/i18n';
-import { SupportedLanguage, LANGUAGE_NAMES } from '@/lib/translations';
 
 export default function Profile() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { profile, isLoading: profileLoading, updateStudyLanguage } = useProfile();
-  
-  const [studyLanguage, setStudyLanguage] = useState<SupportedLanguage>('ru');
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  // Sync study language from profile
-  useEffect(() => {
-    if (profile) {
-      setStudyLanguage(profile.language);
-    }
-  }, [profile]);
+  const { isLoading: profileLoading } = useProfile();
 
   const handleSignOut = async () => {
     await signOut();
@@ -37,24 +24,6 @@ export default function Profile() {
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang);
     localStorage.setItem('i18nextLng', lang);
-  };
-
-  const handleStudyLanguageChange = (lang: SupportedLanguage) => {
-    setStudyLanguage(lang);
-    setHasChanges(lang !== profile?.language);
-  };
-
-  const handleSaveStudyLanguage = async () => {
-    setIsSaving(true);
-    const success = await updateStudyLanguage(studyLanguage);
-    setIsSaving(false);
-    
-    if (success) {
-      setHasChanges(false);
-      toast.success(t('profile.studyLanguageSaved') || 'Study language saved');
-    } else {
-      toast.error(t('profile.saveFailed') || 'Failed to save');
-    }
   };
 
   return (
@@ -75,48 +44,20 @@ export default function Profile() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <BookOpen className="h-5 w-5" />
-              {t('profile.studyLanguage') || 'Study Language'}
+              {t('profile.studyLanguage')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {t('profile.studyLanguageDescription') || 'Default language for viewing study materials and translations.'}
+              {t('profile.studyLanguageDescription')}
             </p>
             {profileLoading ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
+                <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
               </div>
             ) : (
-              <div className="flex gap-2">
-                {(['ru', 'de', 'en'] as const).map((lang) => (
-                  <Button
-                    key={lang}
-                    variant={studyLanguage === lang ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handleStudyLanguageChange(lang)}
-                    className="uppercase"
-                  >
-                    {lang}
-                  </Button>
-                ))}
-              </div>
-            )}
-            {hasChanges && (
-              <Button 
-                onClick={handleSaveStudyLanguage} 
-                disabled={isSaving}
-                className="w-full"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('common.saving') || 'Saving...'}
-                  </>
-                ) : (
-                  t('common.save') || 'Save'
-                )}
-              </Button>
+              <LanguageSwitcher size="default" />
             )}
           </CardContent>
         </Card>
@@ -126,7 +67,7 @@ export default function Profile() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Globe className="h-5 w-5" />
-              {t('profile.uiLanguage') || 'Interface Language'}
+              {t('profile.uiLanguage')}
             </CardTitle>
           </CardHeader>
           <CardContent>
