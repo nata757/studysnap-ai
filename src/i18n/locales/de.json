@@ -91,9 +91,11 @@
   },
   "profile": {
     "studyLanguage": "Lernsprache",
-    "studyLanguageDescription": "Standardsprache für die Anzeige von Lernmaterialien und Übersetzungen.",
+    "studyLanguageDescription": "Sprache für KI-generierte Inhalte und Kartenwiederholung.",
     "studyLanguageSaved": "Lernsprache gespeichert",
     "uiLanguage": "Oberflächensprache",
+    "uiLanguageDescription": "Sprache für Schaltflächen, Menüs und Text in der App.",
+    "uiLanguageSaved": "Oberflächensprache gespeichert",
     "saveFailed": "Speichern fehlgeschlagen"
   },
   "ai": {

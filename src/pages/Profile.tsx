@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { LogOut, Globe, BookOpen, Loader2 } from 'lucide-react';
-import i18n from '@/i18n';
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -19,11 +17,6 @@ export default function Profile() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
-  };
-
-  const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('i18nextLng', lang);
   };
 
   return (
@@ -57,7 +50,7 @@ export default function Profile() {
                 <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
               </div>
             ) : (
-              <LanguageSwitcher size="default" />
+              <LanguageSwitcher type="study" size="default" />
             )}
           </CardContent>
         </Card>
@@ -70,17 +63,18 @@ export default function Profile() {
               {t('profile.uiLanguage')}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Select value={i18n.language} onValueChange={handleLanguageChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ru">Русский</SelectItem>
-                <SelectItem value="de">Deutsch</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-              </SelectContent>
-            </Select>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t('profile.uiLanguageDescription')}
+            </p>
+            {profileLoading ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
+              </div>
+            ) : (
+              <LanguageSwitcher type="ui" size="default" />
+            )}
           </CardContent>
         </Card>
 
