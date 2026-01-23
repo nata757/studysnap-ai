@@ -105,19 +105,22 @@ export type Database = {
           created_at: string | null
           exam_date: string | null
           id: string
-          language: string | null
+          preferred_study_language: string | null
+          ui_language: string | null
         }
         Insert: {
           created_at?: string | null
           exam_date?: string | null
           id: string
-          language?: string | null
+          preferred_study_language?: string | null
+          ui_language?: string | null
         }
         Update: {
           created_at?: string | null
           exam_date?: string | null
           id?: string
-          language?: string | null
+          preferred_study_language?: string | null
+          ui_language?: string | null
         }
         Relationships: []
       }

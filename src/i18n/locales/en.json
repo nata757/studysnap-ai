@@ -91,9 +91,11 @@
   },
   "profile": {
     "studyLanguage": "Study Language",
-    "studyLanguageDescription": "Default language for viewing study materials and translations.",
+    "studyLanguageDescription": "Language for AI-generated content and flashcard review.",
     "studyLanguageSaved": "Study language saved",
     "uiLanguage": "Interface Language",
+    "uiLanguageDescription": "Language for buttons, menus, and text throughout the app.",
+    "uiLanguageSaved": "Interface language saved",
     "saveFailed": "Failed to save"
   },
   "ai": {

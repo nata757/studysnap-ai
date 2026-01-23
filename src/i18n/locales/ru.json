@@ -91,9 +91,11 @@
   },
   "profile": {
     "studyLanguage": "Язык обучения",
-    "studyLanguageDescription": "Язык по умолчанию для просмотра учебных материалов и переводов.",
+    "studyLanguageDescription": "Язык для AI-контента и повторения карточек.",
     "studyLanguageSaved": "Язык обучения сохранён",
     "uiLanguage": "Язык интерфейса",
+    "uiLanguageDescription": "Язык кнопок, меню и текста в приложении.",
+    "uiLanguageSaved": "Язык интерфейса сохранён",
     "saveFailed": "Не удалось сохранить"
   },
   "ai": {

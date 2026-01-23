@@ -28,7 +28,7 @@ export default function Review() {
   const [completed, setCompleted] = useState(0);
   
   // Use URL param if provided, otherwise fall back to profile language
-  const reviewLanguage = searchParams.get('lang') || profile?.language || 'ru';
+  const reviewLanguage = searchParams.get('lang') || profile?.preferred_study_language || 'ru';
 
   useEffect(() => {
     if (!user) return;

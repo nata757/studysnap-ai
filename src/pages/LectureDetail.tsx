@@ -172,7 +172,7 @@ export default function LectureDetail() {
   // Set default language from profile when loaded
   useEffect(() => {
     if (profile && !languageInitialized) {
-      setSelectedLanguage(profile.language);
+      setSelectedLanguage(profile.preferred_study_language);
       setLanguageInitialized(true);
     }
   }, [profile, languageInitialized]);

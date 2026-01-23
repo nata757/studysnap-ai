@@ -56,7 +56,7 @@ export default function Index() {
         .from('flashcards')
         .select('*', { count: 'exact', head: true })
         .lte('due_date', today)
-        .eq('language', profile.language);
+        .eq('language', profile.preferred_study_language);
 
       setDueCardsCount(count || 0);
     };
@@ -79,7 +79,7 @@ export default function Index() {
                   <p className="text-sm text-muted-foreground">{t('home.reviewToday')}</p>
                   {profile && (
                     <Badge variant="outline" className="text-xs uppercase">
-                      {profile.language}
+                      {profile.preferred_study_language}
                     </Badge>
                   )}
                 </div>
@@ -90,7 +90,7 @@ export default function Index() {
             </div>
             {dueCardsCount > 0 && (
               <Button asChild size="sm">
-                <Link to={`/review?lang=${profile?.language || 'ru'}`}>{t('home.startReview')}</Link>
+                <Link to={`/review?lang=${profile?.preferred_study_language || 'ru'}`}>{t('home.startReview')}</Link>
               </Button>
             )}
           </CardContent>

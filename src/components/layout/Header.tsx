@@ -23,7 +23,7 @@ export function Header({ title, showLogo = true, showLanguageSwitcher = false }:
           <h1 className="text-lg font-semibold">{title}</h1>
         )}
         
-        {showLanguageSwitcher && <LanguageSwitcher />}
+        {showLanguageSwitcher && <LanguageSwitcher type="study" />}
       </div>
     </header>
   );
