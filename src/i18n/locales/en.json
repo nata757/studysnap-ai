@@ -99,6 +99,7 @@
     "uiLanguage": "Interface Language",
     "uiLanguageDescription": "Language for buttons, menus, and text throughout the app.",
     "uiLanguageSaved": "Interface language saved",
+    "languageSaved": "Language saved",
     "saveFailed": "Failed to save"
   },
   "ai": {

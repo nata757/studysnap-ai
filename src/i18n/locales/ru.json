@@ -99,6 +99,7 @@
     "uiLanguage": "Язык интерфейса",
     "uiLanguageDescription": "Язык кнопок, меню и текста в приложении.",
     "uiLanguageSaved": "Язык интерфейса сохранён",
+    "languageSaved": "Язык сохранён",
     "saveFailed": "Не удалось сохранить"
   },
   "ai": {
