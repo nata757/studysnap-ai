@@ -6,9 +6,9 @@
  *   "i18n": {
  *     "sourceLanguage": "ru|de|en",
  *     "versions": {
- *       "ru": { "text": "...", "isManual": true|false },
- *       "de": { "text": "...", "isManual": true|false },
- *       "en": { "text": "...", "isManual": true|false }
+ *       "ru": { "title": "...", "text": "...", "isManual": true|false },
+ *       "de": { "title": "...", "text": "...", "isManual": true|false },
+ *       "en": { "title": "...", "text": "...", "isManual": true|false }
  *     }
  *   }
  * }
@@ -17,6 +17,7 @@
 export type SupportedLanguage = 'ru' | 'de' | 'en';
 
 export interface LanguageVersion {
+  title?: string;
   text: string;
   isManual: boolean;
 }
@@ -37,9 +38,19 @@ interface LegacyTranslationData {
   translations: Partial<Record<SupportedLanguage, string>>;
 }
 
+// New format with title translations
+interface NewFormatTranslationData {
+  originalLanguage: SupportedLanguage;
+  originalText: {
+    title: string;
+    text: string;
+  };
+  translations: Partial<Record<SupportedLanguage, { title: string; text: string }>>;
+}
+
 /**
  * Parse the notes field to extract i18n data
- * Handles both new format and legacy format migration
+ * Handles new format, current format, and legacy format migration
  */
 export function parseI18nData(notes: string | null): I18nData | null {
   if (!notes) return null;
@@ -47,13 +58,18 @@ export function parseI18nData(notes: string | null): I18nData | null {
   try {
     const parsed = JSON.parse(notes);
     
-    // New format: { i18n: { sourceLanguage, versions } }
+    // Current format: { i18n: { sourceLanguage, versions } }
     if (parsed?.i18n?.sourceLanguage && parsed?.i18n?.versions) {
       return parsed.i18n as I18nData;
     }
     
+    // New proposed format: { originalLanguage, originalText: {title, text}, translations }
+    if (parsed?.originalLanguage && parsed?.originalText?.text) {
+      return migrateNewFormat(parsed as NewFormatTranslationData);
+    }
+    
     // Legacy format: { originalText, sourceLanguage, translations }
-    if (parsed?.originalText && parsed?.sourceLanguage && parsed?.translations) {
+    if (parsed?.originalText && typeof parsed.originalText === 'string' && parsed?.sourceLanguage) {
       const legacy = parsed as LegacyTranslationData;
       return migrateLegacyFormat(legacy);
     }
@@ -63,6 +79,38 @@ export function parseI18nData(notes: string | null): I18nData | null {
     // Notes field contains plain text or invalid JSON
     return null;
   }
+}
+
+/**
+ * Migrate new proposed format to i18n format
+ */
+function migrateNewFormat(data: NewFormatTranslationData): I18nData {
+  const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
+  
+  // Source language version is always manual
+  versions[data.originalLanguage] = {
+    title: data.originalText.title,
+    text: data.originalText.text,
+    isManual: true,
+  };
+  
+  // Other translations are auto-generated
+  if (data.translations) {
+    for (const [lang, content] of Object.entries(data.translations)) {
+      if (content && lang !== data.originalLanguage) {
+        versions[lang as SupportedLanguage] = {
+          title: content.title,
+          text: content.text,
+          isManual: false,
+        };
+      }
+    }
+  }
+  
+  return {
+    sourceLanguage: data.originalLanguage,
+    versions,
+  };
 }
 
 /**
@@ -78,12 +126,14 @@ function migrateLegacyFormat(legacy: LegacyTranslationData): I18nData {
   };
   
   // Other translations are auto-generated
-  for (const [lang, text] of Object.entries(legacy.translations)) {
-    if (text && lang !== legacy.sourceLanguage) {
-      versions[lang as SupportedLanguage] = {
-        text,
-        isManual: false,
-      };
+  if (legacy.translations) {
+    for (const [lang, text] of Object.entries(legacy.translations)) {
+      if (text && lang !== legacy.sourceLanguage) {
+        versions[lang as SupportedLanguage] = {
+          text,
+          isManual: false,
+        };
+      }
     }
   }
   
@@ -101,16 +151,18 @@ export function serializeI18nData(data: I18nData): string {
 }
 
 /**
- * Create initial i18n data structure from source text
+ * Create initial i18n data structure from source text and optional title
  */
 export function createI18nData(
   sourceText: string,
-  sourceLanguage: SupportedLanguage
+  sourceLanguage: SupportedLanguage,
+  sourceTitle?: string
 ): I18nData {
   return {
     sourceLanguage,
     versions: {
       [sourceLanguage]: {
+        ...(sourceTitle && { title: sourceTitle }),
         text: sourceText,
         isManual: true,
       },
@@ -119,7 +171,7 @@ export function createI18nData(
 }
 
 /**
- * Add or update a translation version
+ * Add or update a translation version (text only)
  * Will NOT overwrite if existing version is manual and new is auto
  */
 export function setVersion(
@@ -139,7 +191,74 @@ export function setVersion(
     ...data,
     versions: {
       ...data.versions,
-      [language]: { text, isManual },
+      [language]: { 
+        ...existing,
+        text, 
+        isManual,
+      },
+    },
+  };
+}
+
+/**
+ * Add or update a full translation version (title + text)
+ * Will NOT overwrite if existing version is manual and new is auto
+ */
+export function setFullVersion(
+  data: I18nData,
+  language: SupportedLanguage,
+  title: string,
+  text: string,
+  isManual: boolean
+): I18nData {
+  const existing = data.versions[language];
+  
+  // Never overwrite manual with auto
+  if (existing?.isManual && !isManual) {
+    return data;
+  }
+  
+  return {
+    ...data,
+    versions: {
+      ...data.versions,
+      [language]: { title, text, isManual },
+    },
+  };
+}
+
+/**
+ * Update only the title for a language version
+ */
+export function setTitle(
+  data: I18nData,
+  language: SupportedLanguage,
+  title: string,
+  isManual: boolean
+): I18nData {
+  const existing = data.versions[language];
+  
+  // If no existing version, create one with empty text
+  if (!existing) {
+    return {
+      ...data,
+      versions: {
+        ...data.versions,
+        [language]: { title, text: '', isManual },
+      },
+    };
+  }
+  
+  // For title-only updates on existing versions, preserve text and update isManual if setting manually
+  return {
+    ...data,
+    versions: {
+      ...data.versions,
+      [language]: { 
+        ...existing, 
+        title,
+        isManual: isManual || existing.isManual,
+      },
     },
   };
 }
@@ -162,6 +281,23 @@ export function getTextInLanguage(
 }
 
 /**
+ * Get title in a specific language (falls back to source if not available)
+ */
+export function getTitleInLanguage(
+  data: I18nData | null,
+  language: SupportedLanguage
+): string {
+  if (!data) return '';
+  
+  const version = data.versions[language];
+  if (version?.title) return version.title;
+  
+  // Fallback to source language
+  const sourceVersion = data.versions[data.sourceLanguage];
+  return sourceVersion?.title || '';
+}
+
+/**
  * Check if a version exists for a language
  */
 export function hasVersion(
@@ -170,6 +306,17 @@ export function hasVersion(
 ): boolean {
   if (!data) return false;
   return !!data.versions[language]?.text;
+}
+
+/**
+ * Check if a title version exists for a language
+ */
+export function hasTitleVersion(
+  data: I18nData | null,
+  language: SupportedLanguage
+): boolean {
+  if (!data) return false;
+  return !!data.versions[language]?.title;
 }
 
 /**
@@ -249,9 +396,10 @@ export function serializeTranslationData(data: I18nData): string {
 
 export function createTranslationData(
   originalText: string,
-  sourceLanguage: SupportedLanguage
+  sourceLanguage: SupportedLanguage,
+  originalTitle?: string
 ): I18nData {
-  return createI18nData(originalText, sourceLanguage);
+  return createI18nData(originalText, sourceLanguage, originalTitle);
 }
 
 export function setTranslation(
