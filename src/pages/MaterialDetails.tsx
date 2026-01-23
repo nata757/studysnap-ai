@@ -18,6 +18,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { TOPICS, Topic, PhotoData } from '@/lib/types';
 import { uploadPhoto, createDraftMaterial } from '@/lib/storage';
+import { 
+  createTranslationData, 
+  serializeTranslationData, 
+  detectSourceLanguage 
+} from '@/lib/translations';
 import { toast } from 'sonner';
 
 export default function MaterialDetails() {
@@ -111,6 +116,11 @@ export default function MaterialDetails() {
         }
       }
 
+      // Create translation data structure
+      const sourceLanguage = detectSourceLanguage(lectureText);
+      const translationData = createTranslationData(lectureText, sourceLanguage);
+      const notes = serializeTranslationData(translationData);
+
       // Update material with all data
       const { error: updateError } = await supabase
         .from('materials')
@@ -119,6 +129,7 @@ export default function MaterialDetails() {
           topic,
           tags: tags.length > 0 ? tags : null,
           ocr_text: lectureText,
+          notes, // Store translation data as JSON
           images: photos.map(p => p.url), // Keep legacy images array for compatibility
           photos, // New structure with paths
         })
