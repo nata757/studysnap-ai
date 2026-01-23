@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { material_id, ocr_text, title, topic } = await req.json();
+    const { material_id, ocr_text, title, topic, language = 'ru' } = await req.json();
 
     if (!material_id || !ocr_text) {
       return new Response(
@@ -21,7 +21,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating summary for material:', material_id);
+    console.log('Generating summary for material:', material_id, 'language:', language);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -160,11 +160,12 @@ ${ocr_text}`;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if summary already exists for this material
+    // Check if summary already exists for this material AND language
     const { data: existing } = await supabase
       .from('summaries')
       .select('id')
       .eq('material_id', material_id)
+      .eq('language', language)
       .maybeSingle();
 
     let dbResult;
@@ -183,7 +184,7 @@ ${ocr_text}`;
         .select()
         .single();
     } else {
-      // Insert new summary
+      // Insert new summary with language
       dbResult = await supabase
         .from('summaries')
         .insert({
@@ -192,6 +193,7 @@ ${ocr_text}`;
           medium_summary: summaryData.medium,
           long_summary: summaryData.long,
           warnings: summaryData.warnings || [],
+          language,
         })
         .select()
         .single();

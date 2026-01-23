@@ -21,6 +21,7 @@ export type Database = {
           created_at: string | null
           due_date: string | null
           id: string
+          language: string | null
           material_id: string
           question: string
           stage: number | null
@@ -31,6 +32,7 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           id?: string
+          language?: string | null
           material_id: string
           question: string
           stage?: number | null
@@ -41,6 +43,7 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           id?: string
+          language?: string | null
           material_id?: string
           question?: string
           stage?: number | null
@@ -125,6 +128,7 @@ export type Database = {
           created_at: string | null
           explanation: string | null
           id: string
+          language: string | null
           material_id: string
           options: Json
           question: string
@@ -135,6 +139,7 @@ export type Database = {
           created_at?: string | null
           explanation?: string | null
           id?: string
+          language?: string | null
           material_id: string
           options?: Json
           question: string
@@ -145,6 +150,7 @@ export type Database = {
           created_at?: string | null
           explanation?: string | null
           id?: string
+          language?: string | null
           material_id?: string
           options?: Json
           question?: string
@@ -163,6 +169,7 @@ export type Database = {
         Row: {
           generated_at: string | null
           id: string
+          language: string | null
           long_summary: string | null
           material_id: string
           medium_summary: string | null
@@ -172,6 +179,7 @@ export type Database = {
         Insert: {
           generated_at?: string | null
           id?: string
+          language?: string | null
           long_summary?: string | null
           material_id: string
           medium_summary?: string | null
@@ -181,6 +189,7 @@ export type Database = {
         Update: {
           generated_at?: string | null
           id?: string
+          language?: string | null
           long_summary?: string | null
           material_id?: string
           medium_summary?: string | null

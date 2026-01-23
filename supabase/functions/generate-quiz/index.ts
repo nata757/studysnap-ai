@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { material_id, ocr_text, title, topic, count = 8 } = await req.json();
+    const { material_id, ocr_text, title, topic, count = 8, language = 'ru' } = await req.json();
 
     if (!material_id || !ocr_text) {
       return new Response(
@@ -21,7 +21,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating quiz for material:', material_id, 'count:', count);
+    console.log('Generating quiz for material:', material_id, 'count:', count, 'language:', language);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -165,13 +165,14 @@ ${ocr_text}`;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Delete existing quiz questions for this material
+    // Delete existing quiz questions for this material AND language
     await supabase
       .from('quiz_questions')
       .delete()
-      .eq('material_id', material_id);
+      .eq('material_id', material_id)
+      .eq('language', language);
 
-    // Insert new quiz questions
+    // Insert new quiz questions with language
     const questionsToInsert = quizData.questions.map((q: any) => ({
       material_id,
       question: q.question,
@@ -179,6 +180,7 @@ ${ocr_text}`;
       correct_index: q.correctIndex,
       explanation: q.explanation,
       confidence: q.confidence,
+      language,
     }));
 
     const { data: insertedQuestions, error: insertError } = await supabase
