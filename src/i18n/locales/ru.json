@@ -92,5 +92,12 @@
     "studyLanguageSaved": "Язык обучения сохранён",
     "uiLanguage": "Язык интерфейса",
     "saveFailed": "Не удалось сохранить"
+  },
+  "ai": {
+    "noTranslationTitle": "Перевод недоступен",
+    "noTranslationDescription": "Текст ещё не переведён на {{language}}. Хотите сначала перевести?",
+    "useSource": "Использовать оригинал",
+    "translateAndContinue": "Перевести и продолжить",
+    "translating": "Перевод..."
   }
 }
