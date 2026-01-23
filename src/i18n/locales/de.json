@@ -73,7 +73,10 @@
     "didntKnow": "Wusste nicht",
     "showAnswer": "Antwort zeigen",
     "complete": "Alles für heute erledigt! 🎉",
-    "noCards": "Keine Karten zum Wiederholen"
+    "noCards": "Keine Karten zum Wiederholen",
+    "noCardsInLang": "Keine Karten heute auf {{lang}}.",
+    "generateOrSwitch": "Karten erstellen oder Sprache wechseln.",
+    "switchLanguage": "Sprache wechseln"
   },
   "search": {
     "title": "Suche",
