@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
@@ -106,6 +107,7 @@ export default function LectureDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [material, setMaterial] = useState<Material | null>(null);
@@ -156,10 +158,19 @@ export default function LectureDetail() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
 
-  // Translation state
+  // Translation state - default to profile's study language
   const [translationData, setTranslationData] = useState<TranslationData | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('ru');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [languageInitialized, setLanguageInitialized] = useState(false);
+
+  // Set default language from profile when loaded
+  useEffect(() => {
+    if (profile && !languageInitialized) {
+      setSelectedLanguage(profile.language);
+      setLanguageInitialized(true);
+    }
+  }, [profile, languageInitialized]);
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
