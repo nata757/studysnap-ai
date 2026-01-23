@@ -535,44 +535,43 @@ export default function LectureDetail() {
     }
   };
 
-  // Fetch existing summary
-  const fetchSummary = async () => {
+  // Fetch existing summary for current language
+  const fetchSummary = async (lang: SupportedLanguage) => {
     if (!id) return;
     
     const { data } = await supabase
       .from('summaries')
       .select('*')
       .eq('material_id', id)
+      .eq('language', lang)
       .maybeSingle();
     
-    if (data) {
-      setSummary(data);
-    }
+    setSummary(data || null);
   };
 
-  // Fetch existing flashcards
-  const fetchFlashcards = async () => {
+  // Fetch existing flashcards for current language
+  const fetchFlashcards = async (lang: SupportedLanguage) => {
     if (!id) return;
     
     const { data } = await supabase
       .from('flashcards')
       .select('*')
       .eq('material_id', id)
+      .eq('language', lang)
       .order('created_at', { ascending: true });
     
-    if (data) {
-      setFlashcards(data as Flashcard[]);
-    }
+    setFlashcards((data || []) as Flashcard[]);
   };
 
-  // Fetch existing quiz questions
-  const fetchQuizQuestions = async () => {
+  // Fetch existing quiz questions for current language
+  const fetchQuizQuestions = async (lang: SupportedLanguage) => {
     if (!id) return;
     
     const { data } = await supabase
       .from('quiz_questions')
       .select('*')
       .eq('material_id', id)
+      .eq('language', lang)
       .order('created_at', { ascending: true });
     
     if (data) {
@@ -582,8 +581,19 @@ export default function LectureDetail() {
         options: Array.isArray(q.options) ? q.options : JSON.parse(q.options as string),
       })) as QuizQuestion[];
       setQuizQuestions(parsed);
+    } else {
+      setQuizQuestions([]);
     }
   };
+
+  // Refetch all AI content when language changes
+  useEffect(() => {
+    if (id && languageInitialized) {
+      fetchSummary(selectedLanguage);
+      fetchFlashcards(selectedLanguage);
+      fetchQuizQuestions(selectedLanguage);
+    }
+  }, [id, selectedLanguage, languageInitialized]);
 
   // Execute summary generation (internal - uses getTextForAi)
   const executeGenerateSummary = async () => {
@@ -602,6 +612,7 @@ export default function LectureDetail() {
           ocr_text: textForAi,
           title: material.title,
           topic: material.topic,
+          language: selectedLanguage,
         },
       });
 
@@ -651,6 +662,7 @@ export default function LectureDetail() {
           title: material.title,
           topic: material.topic,
           count: 15,
+          language: selectedLanguage,
         },
       });
 
@@ -703,6 +715,7 @@ export default function LectureDetail() {
           title: material.title,
           topic: material.topic,
           count: 8,
+          language: selectedLanguage,
         },
       });
 
@@ -870,9 +883,7 @@ export default function LectureDetail() {
     };
 
     fetchMaterial();
-    fetchSummary();
-    fetchFlashcards();
-    fetchQuizQuestions();
+    // AI content is fetched via the useEffect that depends on selectedLanguage
   }, [id, user]);
 
   // Redirect to home if material not found (after loading completes)
@@ -1161,11 +1172,15 @@ export default function LectureDetail() {
                     </p>
                   </>
                 ) : (
-                  <div className="text-center py-8 space-y-3">
+                  <div className="text-center py-8 space-y-4">
                     <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No summary yet. Use the AI Study Tools below to generate one.
+                      No summary in {LANGUAGE_NAMES[selectedLanguage]} yet.
                     </p>
+                    <Button onClick={handleGenerateSummary} disabled={isGeneratingSummary}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate in {selectedLanguage.toUpperCase()}
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1239,11 +1254,15 @@ export default function LectureDetail() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-8 space-y-3">
+                  <div className="text-center py-8 space-y-4">
                     <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No flashcards yet. Use the AI Study Tools below to generate them.
+                      No flashcards in {LANGUAGE_NAMES[selectedLanguage]} yet.
                     </p>
+                    <Button onClick={handleGenerateFlashcards} disabled={isGeneratingFlashcards}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Generate in {selectedLanguage.toUpperCase()}
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1367,11 +1386,15 @@ export default function LectureDetail() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-8 space-y-3">
+                  <div className="text-center py-8 space-y-4">
                     <HelpCircle className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No quiz yet. Use the AI Study Tools below to generate one.
+                      No quiz in {LANGUAGE_NAMES[selectedLanguage]} yet.
                     </p>
+                    <Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz}>
+                      <HelpCircle className="mr-2 h-4 w-4" />
+                      Generate in {selectedLanguage.toUpperCase()}
+                    </Button>
                   </div>
                 )}
               </CardContent>
