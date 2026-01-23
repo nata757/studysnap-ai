@@ -44,9 +44,12 @@ import {
   hasTranslation,
   getAvailableLanguages,
   LANGUAGE_NAMES,
+  LANGUAGE_CODES,
   setTranslation,
+  setVersion,
   createTranslationData,
-  detectSourceLanguage
+  detectSourceLanguage,
+  isVersionManual
 } from '@/lib/translations';
 
 interface Material {
@@ -194,7 +197,7 @@ export default function LectureDetail() {
     }
     
     // Fallback to source text
-    return translationData.originalText || material?.ocr_text || null;
+    return getTextInLanguage(translationData, translationData.sourceLanguage) || material?.ocr_text || null;
   };
 
   // Check if we need to prompt for translation before AI generation
@@ -439,6 +442,23 @@ export default function LectureDetail() {
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0);
 
+      // Check if text was edited - if so, update i18n data
+      let updatedNotes = material.notes;
+      let updatedTranslationData = translationData;
+      
+      if (textDraft !== material.ocr_text) {
+        // Text was changed - update the version for current view language as manual
+        if (translationData) {
+          updatedTranslationData = setVersion(translationData, viewLanguage, textDraft, true);
+          updatedNotes = serializeTranslationData(updatedTranslationData);
+        } else {
+          // Create new translation data
+          const sourceLanguage = detectSourceLanguage(textDraft);
+          updatedTranslationData = createTranslationData(textDraft, sourceLanguage);
+          updatedNotes = serializeTranslationData(updatedTranslationData);
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('materials')
         .update({
@@ -446,6 +466,7 @@ export default function LectureDetail() {
           topic: editForm.topic,
           tags: tagsArray,
           ocr_text: textDraft || null,
+          notes: updatedNotes,
           photos: editForm.photos,
           images: editForm.photos.map(p => p.url), // Keep legacy in sync
         })
@@ -457,16 +478,21 @@ export default function LectureDetail() {
         return;
       }
 
-      // Update local state with textDraft
+      // Update local state with textDraft and updated translation data
       setMaterial({
         ...material,
         title: editForm.title || null,
         topic: editForm.topic,
         tags: tagsArray,
         ocr_text: textDraft || null,
+        notes: updatedNotes,
         photos: editForm.photos,
         images: editForm.photos.map(p => p.url),
       });
+      
+      if (updatedTranslationData) {
+        setTranslationData(updatedTranslationData);
+      }
 
       setIsEditing(false);
       toast.success('Changes saved successfully!');
@@ -797,10 +823,10 @@ export default function LectureDetail() {
     setIsTranslating(true);
     
     try {
+      // Use new materialId-based API
       const response = await supabase.functions.invoke('translate-text', {
         body: {
-          text: translationData.originalText,
-          sourceLanguage: translationData.sourceLanguage,
+          materialId: id,
           targetLanguage: targetLang,
         },
       });
@@ -817,22 +843,14 @@ export default function LectureDetail() {
       }
 
       const translatedText = response.data.translatedText;
+      const isManual = response.data.isManual || false;
       
-      // Update translation data
+      // Update local translation data with new version
       const updatedData = setTranslation(translationData, targetLang, translatedText);
       setTranslationData(updatedData);
       setViewLanguage(targetLang);
 
-      // Persist to database
-      const { error: updateError } = await supabase
-        .from('materials')
-        .update({ notes: serializeTranslationData(updatedData) })
-        .eq('id', id);
-
-      if (updateError) {
-        console.warn('Failed to save translation:', updateError);
-      }
-
+      // Note: The edge function already saves to DB, so we don't need to save here
       toast.success(`Translated to ${LANGUAGE_NAMES[targetLang]}`);
     } catch (err) {
       console.error('Translate error:', err);
@@ -1050,12 +1068,21 @@ export default function LectureDetail() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Lecture Text</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">Lecture Text</CardTitle>
+                    {/* Source language badge - show when viewing in different language */}
+                    {!isEditing && translationData && studyLanguage !== translationData.sourceLanguage && (
+                      <Badge variant="outline" className="text-xs">
+                        Original: {LANGUAGE_CODES[translationData.sourceLanguage]}
+                      </Badge>
+                    )}
+                  </div>
                   {!isEditing && translationData && (
                     <div className="flex gap-1">
                       {(['ru', 'de', 'en'] as const).map((lang) => {
                         const available = hasTranslation(translationData, lang);
                         const isSource = translationData.sourceLanguage === lang;
+                        const isManual = isVersionManual(translationData, lang);
                         return (
                           <Button
                             key={lang}
@@ -1066,6 +1093,7 @@ export default function LectureDetail() {
                           >
                             {lang}
                             {isSource && <span className="ml-1 opacity-50">•</span>}
+                            {available && isManual && !isSource && <span className="ml-1 opacity-50">✓</span>}
                             {!available && !isSource && <span className="ml-1 opacity-50">?</span>}
                           </Button>
                         );
@@ -1073,9 +1101,9 @@ export default function LectureDetail() {
                     </div>
                   )}
                 </div>
-                {!isEditing && translationData && viewLanguage !== translationData.sourceLanguage && (
+                {!isEditing && translationData && viewLanguage !== translationData.sourceLanguage && hasTranslation(translationData, viewLanguage) && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Translated from {LANGUAGE_NAMES[translationData.sourceLanguage]}
+                    {isVersionManual(translationData, viewLanguage) ? 'Manually edited' : `Translated from ${LANGUAGE_NAMES[translationData.sourceLanguage]}`}
                   </p>
                 )}
               </CardHeader>

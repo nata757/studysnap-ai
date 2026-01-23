@@ -3,42 +3,61 @@
  * 
  * Translations are stored in the `notes` field of materials table as JSON:
  * {
- *   originalText: "source OCR text",
- *   sourceLanguage: "de" | "en" | "ru",
- *   translations: {
- *     ru: "translated text...",
- *     de: "translated text...",
- *     en: "translated text..."
+ *   "i18n": {
+ *     "sourceLanguage": "ru|de|en",
+ *     "versions": {
+ *       "ru": { "text": "...", "isManual": true|false },
+ *       "de": { "text": "...", "isManual": true|false },
+ *       "en": { "text": "...", "isManual": true|false }
+ *     }
  *   }
  * }
  */
 
 export type SupportedLanguage = 'ru' | 'de' | 'en';
 
-export interface TranslationData {
+export interface LanguageVersion {
+  text: string;
+  isManual: boolean;
+}
+
+export interface I18nData {
+  sourceLanguage: SupportedLanguage;
+  versions: Partial<Record<SupportedLanguage, LanguageVersion>>;
+}
+
+export interface NotesData {
+  i18n: I18nData;
+}
+
+// Legacy format for migration
+interface LegacyTranslationData {
   originalText: string;
   sourceLanguage: SupportedLanguage;
   translations: Partial<Record<SupportedLanguage, string>>;
 }
 
 /**
- * Parse the notes field to extract translation data
+ * Parse the notes field to extract i18n data
+ * Handles both new format and legacy format migration
  */
-export function parseTranslationData(notes: string | null): TranslationData | null {
+export function parseI18nData(notes: string | null): I18nData | null {
   if (!notes) return null;
   
   try {
     const parsed = JSON.parse(notes);
-    // Validate structure
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof parsed.originalText === 'string' &&
-      typeof parsed.sourceLanguage === 'string' &&
-      typeof parsed.translations === 'object'
-    ) {
-      return parsed as TranslationData;
+    
+    // New format: { i18n: { sourceLanguage, versions } }
+    if (parsed?.i18n?.sourceLanguage && parsed?.i18n?.versions) {
+      return parsed.i18n as I18nData;
     }
+    
+    // Legacy format: { originalText, sourceLanguage, translations }
+    if (parsed?.originalText && parsed?.sourceLanguage && parsed?.translations) {
+      const legacy = parsed as LegacyTranslationData;
+      return migrateLegacyFormat(legacy);
+    }
+    
     return null;
   } catch {
     // Notes field contains plain text or invalid JSON
@@ -47,75 +66,131 @@ export function parseTranslationData(notes: string | null): TranslationData | nu
 }
 
 /**
- * Serialize translation data to store in notes field
+ * Migrate legacy translation format to new i18n format
  */
-export function serializeTranslationData(data: TranslationData): string {
-  return JSON.stringify(data);
+function migrateLegacyFormat(legacy: LegacyTranslationData): I18nData {
+  const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
+  
+  // Source language version is always manual
+  versions[legacy.sourceLanguage] = {
+    text: legacy.originalText,
+    isManual: true,
+  };
+  
+  // Other translations are auto-generated
+  for (const [lang, text] of Object.entries(legacy.translations)) {
+    if (text && lang !== legacy.sourceLanguage) {
+      versions[lang as SupportedLanguage] = {
+        text,
+        isManual: false,
+      };
+    }
+  }
+  
+  return {
+    sourceLanguage: legacy.sourceLanguage,
+    versions,
+  };
 }
 
 /**
- * Create initial translation data structure
+ * Serialize i18n data to store in notes field
  */
-export function createTranslationData(
-  originalText: string,
+export function serializeI18nData(data: I18nData): string {
+  return JSON.stringify({ i18n: data });
+}
+
+/**
+ * Create initial i18n data structure from source text
+ */
+export function createI18nData(
+  sourceText: string,
   sourceLanguage: SupportedLanguage
-): TranslationData {
+): I18nData {
   return {
-    originalText,
     sourceLanguage,
-    translations: {
-      [sourceLanguage]: originalText, // Source language always has original text
+    versions: {
+      [sourceLanguage]: {
+        text: sourceText,
+        isManual: true,
+      },
     },
   };
 }
 
 /**
- * Add or update a translation
+ * Add or update a translation version
+ * Will NOT overwrite if existing version is manual and new is auto
  */
-export function setTranslation(
-  data: TranslationData,
+export function setVersion(
+  data: I18nData,
   language: SupportedLanguage,
-  text: string
-): TranslationData {
+  text: string,
+  isManual: boolean
+): I18nData {
+  const existing = data.versions[language];
+  
+  // Never overwrite manual with auto
+  if (existing?.isManual && !isManual) {
+    return data;
+  }
+  
   return {
     ...data,
-    translations: {
-      ...data.translations,
-      [language]: text,
+    versions: {
+      ...data.versions,
+      [language]: { text, isManual },
     },
   };
 }
 
 /**
- * Get text in a specific language (falls back to original if not available)
+ * Get text in a specific language (falls back to source if not available)
  */
 export function getTextInLanguage(
-  data: TranslationData | null,
+  data: I18nData | null,
   language: SupportedLanguage
 ): string {
   if (!data) return '';
-  return data.translations[language] || data.originalText;
+  
+  const version = data.versions[language];
+  if (version?.text) return version.text;
+  
+  // Fallback to source language
+  const sourceVersion = data.versions[data.sourceLanguage];
+  return sourceVersion?.text || '';
 }
 
 /**
- * Check if a translation exists for a language
+ * Check if a version exists for a language
  */
-export function hasTranslation(
-  data: TranslationData | null,
+export function hasVersion(
+  data: I18nData | null,
   language: SupportedLanguage
 ): boolean {
   if (!data) return false;
-  return !!data.translations[language];
+  return !!data.versions[language]?.text;
+}
+
+/**
+ * Check if a version is manual (user-edited)
+ */
+export function isVersionManual(
+  data: I18nData | null,
+  language: SupportedLanguage
+): boolean {
+  if (!data) return false;
+  return data.versions[language]?.isManual ?? false;
 }
 
 /**
  * Get all available languages for a material
  */
-export function getAvailableLanguages(data: TranslationData | null): SupportedLanguage[] {
+export function getAvailableLanguages(data: I18nData | null): SupportedLanguage[] {
   if (!data) return [];
-  return Object.keys(data.translations).filter(
+  return Object.keys(data.versions).filter(
     (key): key is SupportedLanguage => 
-      ['ru', 'de', 'en'].includes(key) && !!data.translations[key as SupportedLanguage]
+      ['ru', 'de', 'en'].includes(key) && !!data.versions[key as SupportedLanguage]?.text
   );
 }
 
@@ -126,6 +201,15 @@ export const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   ru: 'Русский',
   de: 'Deutsch',
   en: 'English',
+};
+
+/**
+ * Short language codes for display
+ */
+export const LANGUAGE_CODES: Record<SupportedLanguage, string> = {
+  ru: 'RU',
+  de: 'DE',
+  en: 'EN',
 };
 
 /**
@@ -146,4 +230,42 @@ export function detectSourceLanguage(text: string): SupportedLanguage {
     return 'de';
   }
   return 'en';
+}
+
+// ============================================
+// LEGACY EXPORTS - for backward compatibility
+// These map to the new functions
+// ============================================
+
+export type TranslationData = I18nData;
+
+export function parseTranslationData(notes: string | null): I18nData | null {
+  return parseI18nData(notes);
+}
+
+export function serializeTranslationData(data: I18nData): string {
+  return serializeI18nData(data);
+}
+
+export function createTranslationData(
+  originalText: string,
+  sourceLanguage: SupportedLanguage
+): I18nData {
+  return createI18nData(originalText, sourceLanguage);
+}
+
+export function setTranslation(
+  data: I18nData,
+  language: SupportedLanguage,
+  text: string
+): I18nData {
+  // When called from old code, treat as auto-translation
+  return setVersion(data, language, text, false);
+}
+
+export function hasTranslation(
+  data: I18nData | null,
+  language: SupportedLanguage
+): boolean {
+  return hasVersion(data, language);
 }

@@ -19,8 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { TOPICS, Topic, PhotoData } from '@/lib/types';
 import { uploadPhoto, createDraftMaterial } from '@/lib/storage';
 import { 
-  createTranslationData, 
-  serializeTranslationData, 
+  createI18nData, 
+  serializeI18nData, 
   detectSourceLanguage 
 } from '@/lib/translations';
 import { toast } from 'sonner';
@@ -116,10 +116,10 @@ export default function MaterialDetails() {
         }
       }
 
-      // Create translation data structure
+      // Create i18n data structure with new format
       const sourceLanguage = detectSourceLanguage(lectureText);
-      const translationData = createTranslationData(lectureText, sourceLanguage);
-      const notes = serializeTranslationData(translationData);
+      const i18nData = createI18nData(lectureText, sourceLanguage);
+      const notes = serializeI18nData(i18nData);
 
       // Update material with all data
       const { error: updateError } = await supabase
