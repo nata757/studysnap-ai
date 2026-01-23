@@ -159,33 +159,38 @@ export default function LectureDetail() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
 
-  // Translation state - default to profile's study language
+  // Translation state
   const [translationData, setTranslationData] = useState<TranslationData | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('ru');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [languageInitialized, setLanguageInitialized] = useState(false);
+
+  // Local view language for Text tab only (does NOT affect global study language)
+  const [viewLanguage, setViewLanguage] = useState<SupportedLanguage>('ru');
+  const [viewLanguageInitialized, setViewLanguageInitialized] = useState(false);
 
   // Translation prompt dialog state
   const [showTranslationPrompt, setShowTranslationPrompt] = useState(false);
   const [pendingAiAction, setPendingAiAction] = useState<'summary' | 'flashcards' | 'quiz' | null>(null);
 
-  // Set default language from profile when loaded
-  useEffect(() => {
-    if (profile && !languageInitialized) {
-      setSelectedLanguage(profile.preferred_study_language);
-      setLanguageInitialized(true);
-    }
-  }, [profile, languageInitialized]);
+  // Global study language from profile (used for AI content)
+  const studyLanguage = profile?.preferred_study_language || 'ru';
 
-  // Helper to get text for AI based on selected language
+  // Initialize view language from profile once
+  useEffect(() => {
+    if (profile && !viewLanguageInitialized) {
+      setViewLanguage(profile.preferred_study_language);
+      setViewLanguageInitialized(true);
+    }
+  }, [profile, viewLanguageInitialized]);
+
+  // Helper to get text for AI based on GLOBAL study language
   const getTextForAi = (): string | null => {
     if (!translationData) {
       return material?.ocr_text || null;
     }
     
-    // Check if translation exists for selected language
-    if (hasTranslation(translationData, selectedLanguage)) {
-      return getTextInLanguage(translationData, selectedLanguage);
+    // Check if translation exists for study language
+    if (hasTranslation(translationData, studyLanguage)) {
+      return getTextInLanguage(translationData, studyLanguage);
     }
     
     // Fallback to source text
@@ -196,8 +201,8 @@ export default function LectureDetail() {
   const checkTranslationBeforeAi = (action: 'summary' | 'flashcards' | 'quiz'): boolean => {
     if (!translationData) return true; // No translation data, proceed with source
     
-    // If selected language has translation or is source, proceed
-    if (hasTranslation(translationData, selectedLanguage)) {
+    // If study language has translation or is source, proceed
+    if (hasTranslation(translationData, studyLanguage)) {
       return true;
     }
     
@@ -223,7 +228,7 @@ export default function LectureDetail() {
     const action = pendingAiAction;
     
     // Translate first
-    await handleTranslate(selectedLanguage);
+    await handleTranslate(studyLanguage);
     
     setShowTranslationPrompt(false);
     setPendingAiAction(null);
@@ -586,14 +591,14 @@ export default function LectureDetail() {
     }
   };
 
-  // Refetch all AI content when language changes
+  // Refetch all AI content when GLOBAL study language changes
   useEffect(() => {
-    if (id && languageInitialized) {
-      fetchSummary(selectedLanguage);
-      fetchFlashcards(selectedLanguage);
-      fetchQuizQuestions(selectedLanguage);
+    if (id && profile) {
+      fetchSummary(studyLanguage);
+      fetchFlashcards(studyLanguage);
+      fetchQuizQuestions(studyLanguage);
     }
-  }, [id, selectedLanguage, languageInitialized]);
+  }, [id, studyLanguage, profile]);
 
   // Execute summary generation (internal - uses getTextForAi)
   const executeGenerateSummary = async () => {
@@ -612,7 +617,7 @@ export default function LectureDetail() {
           ocr_text: textForAi,
           title: material.title,
           topic: material.topic,
-          language: selectedLanguage,
+          language: studyLanguage,
         },
       });
 
@@ -662,7 +667,7 @@ export default function LectureDetail() {
           title: material.title,
           topic: material.topic,
           count: 15,
-          language: selectedLanguage,
+          language: studyLanguage,
         },
       });
 
@@ -715,7 +720,7 @@ export default function LectureDetail() {
           title: material.title,
           topic: material.topic,
           count: 8,
-          language: selectedLanguage,
+          language: studyLanguage,
         },
       });
 
@@ -785,7 +790,7 @@ export default function LectureDetail() {
 
     // Don't translate if already exists
     if (hasTranslation(translationData, targetLang)) {
-      setSelectedLanguage(targetLang);
+      setViewLanguage(targetLang);
       return;
     }
 
@@ -816,7 +821,7 @@ export default function LectureDetail() {
       // Update translation data
       const updatedData = setTranslation(translationData, targetLang, translatedText);
       setTranslationData(updatedData);
-      setSelectedLanguage(targetLang);
+      setViewLanguage(targetLang);
 
       // Persist to database
       const { error: updateError } = await supabase
@@ -1054,9 +1059,9 @@ export default function LectureDetail() {
                         return (
                           <Button
                             key={lang}
-                            variant={selectedLanguage === lang ? 'default' : available ? 'outline' : 'ghost'}
+                            variant={viewLanguage === lang ? 'default' : available ? 'outline' : 'ghost'}
                             size="sm"
-                            onClick={() => setSelectedLanguage(lang)}
+                            onClick={() => setViewLanguage(lang)}
                             className="text-xs uppercase"
                           >
                             {lang}
@@ -1068,7 +1073,7 @@ export default function LectureDetail() {
                     </div>
                   )}
                 </div>
-                {!isEditing && translationData && selectedLanguage !== translationData.sourceLanguage && (
+                {!isEditing && translationData && viewLanguage !== translationData.sourceLanguage && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Translated from {LANGUAGE_NAMES[translationData.sourceLanguage]}
                   </p>
@@ -1090,20 +1095,20 @@ export default function LectureDetail() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">{t('ai.translating')}</p>
                   </div>
-                ) : translationData && hasTranslation(translationData, selectedLanguage) ? (
+                ) : translationData && hasTranslation(translationData, viewLanguage) ? (
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                    {getTextInLanguage(translationData, selectedLanguage)}
+                    {getTextInLanguage(translationData, viewLanguage)}
                   </pre>
                 ) : translationData ? (
                   // No translation for selected language - show translate button
                   <div className="text-center py-8 space-y-4">
                     <FileText className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      {t('material.noTranslation', { lang: LANGUAGE_NAMES[selectedLanguage] })}
+                      {t('material.noTranslation', { lang: LANGUAGE_NAMES[viewLanguage] })}
                     </p>
-                    <Button onClick={() => handleTranslate(selectedLanguage)} disabled={isTranslating}>
+                    <Button onClick={() => handleTranslate(viewLanguage)} disabled={isTranslating}>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      {t('material.translateTo', { lang: LANGUAGE_NAMES[selectedLanguage] })}
+                      {t('material.translateTo', { lang: LANGUAGE_NAMES[viewLanguage] })}
                     </Button>
                   </div>
                 ) : material.ocr_text ? (
@@ -1181,11 +1186,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No summary in {LANGUAGE_NAMES[selectedLanguage]} yet.
+                      No summary in {LANGUAGE_NAMES[studyLanguage]} yet.
                     </p>
                     <Button onClick={handleGenerateSummary} disabled={isGeneratingSummary}>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      Generate in {selectedLanguage.toUpperCase()}
+                      Generate in {studyLanguage.toUpperCase()}
                     </Button>
                   </div>
                 )}
@@ -1263,11 +1268,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No flashcards in {LANGUAGE_NAMES[selectedLanguage]} yet.
+                      No flashcards in {LANGUAGE_NAMES[studyLanguage]} yet.
                     </p>
                     <Button onClick={handleGenerateFlashcards} disabled={isGeneratingFlashcards}>
                       <BookOpen className="mr-2 h-4 w-4" />
-                      Generate in {selectedLanguage.toUpperCase()}
+                      Generate in {studyLanguage.toUpperCase()}
                     </Button>
                   </div>
                 )}
@@ -1395,11 +1400,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <HelpCircle className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No quiz in {LANGUAGE_NAMES[selectedLanguage]} yet.
+                      No quiz in {LANGUAGE_NAMES[studyLanguage]} yet.
                     </p>
                     <Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz}>
                       <HelpCircle className="mr-2 h-4 w-4" />
-                      Generate in {selectedLanguage.toUpperCase()}
+                      Generate in {studyLanguage.toUpperCase()}
                     </Button>
                   </div>
                 )}
@@ -1654,7 +1659,7 @@ export default function LectureDetail() {
         <TranslationPromptDialog
           open={showTranslationPrompt}
           onOpenChange={setShowTranslationPrompt}
-          targetLanguage={selectedLanguage}
+          targetLanguage={studyLanguage}
           isTranslating={isTranslating}
           onTranslateAndContinue={handleTranslateAndContinue}
           onUseSource={handleUseSourceForAi}

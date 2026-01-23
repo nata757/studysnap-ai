@@ -48,9 +48,9 @@ export function useProfile() {
         };
         setProfile(userProfile);
         
-        // Sync i18n with user's UI language preference
-        if (userProfile.ui_language && userProfile.ui_language !== i18n.language) {
-          i18n.changeLanguage(userProfile.ui_language);
+        // Sync i18n with the global study language (single source of truth)
+        if (userProfile.preferred_study_language && userProfile.preferred_study_language !== i18n.language) {
+          i18n.changeLanguage(userProfile.preferred_study_language);
         }
       }
     } catch (err) {
@@ -80,6 +80,11 @@ export function useProfile() {
       }
 
       setProfile(prev => prev ? { ...prev, preferred_study_language: language } : null);
+      
+      // Sync i18n with the global study language
+      i18n.changeLanguage(language);
+      localStorage.setItem('i18nextLng', language);
+      
       return true;
     } catch (err) {
       console.error('Update study language error:', err);
