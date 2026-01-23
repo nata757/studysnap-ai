@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { BookOpen } from 'lucide-react';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 interface HeaderProps {
   title?: string;
   showLogo?: boolean;
+  showLanguageSwitcher?: boolean;
 }
 
-export function Header({ title, showLogo = true }: HeaderProps) {
+export function Header({ title, showLogo = true, showLanguageSwitcher = false }: HeaderProps) {
   const { t } = useTranslation();
 
   return (
@@ -20,6 +22,8 @@ export function Header({ title, showLogo = true }: HeaderProps) {
         ) : (
           <h1 className="text-lg font-semibold">{title}</h1>
         )}
+        
+        {showLanguageSwitcher && <LanguageSwitcher />}
       </div>
     </header>
   );

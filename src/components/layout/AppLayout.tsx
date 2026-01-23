@@ -6,17 +6,19 @@ interface AppLayoutProps {
   title?: string;
   showLogo?: boolean;
   showNav?: boolean;
+  showLanguageSwitcher?: boolean;
 }
 
 export function AppLayout({ 
   children, 
   title, 
   showLogo = true, 
-  showNav = true 
+  showNav = true,
+  showLanguageSwitcher = false,
 }: AppLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header title={title} showLogo={showLogo} />
+      <Header title={title} showLogo={showLogo} showLanguageSwitcher={showLanguageSwitcher} />
       <main className="mx-auto w-full max-w-md flex-1 px-4 pb-20 pt-4">
         {children}
       </main>
