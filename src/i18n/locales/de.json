@@ -2,6 +2,7 @@
   "common": {
     "loading": "Laden...",
     "save": "Speichern",
+    "saving": "Speichern...",
     "cancel": "Abbrechen",
     "delete": "Löschen",
     "edit": "Bearbeiten",
@@ -84,5 +85,12 @@
     "high": "Hohe Sicherheit",
     "medium": "Mittlere Sicherheit",
     "low": "Niedrige Sicherheit - überprüfen!"
+  },
+  "profile": {
+    "studyLanguage": "Lernsprache",
+    "studyLanguageDescription": "Standardsprache für die Anzeige von Lernmaterialien und Übersetzungen.",
+    "studyLanguageSaved": "Lernsprache gespeichert",
+    "uiLanguage": "Oberflächensprache",
+    "saveFailed": "Speichern fehlgeschlagen"
   }
 }

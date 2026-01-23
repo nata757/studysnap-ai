@@ -2,6 +2,7 @@
   "common": {
     "loading": "Loading...",
     "save": "Save",
+    "saving": "Saving...",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
@@ -84,5 +85,12 @@
     "high": "High confidence",
     "medium": "Medium confidence",
     "low": "Low confidence - verify!"
+  },
+  "profile": {
+    "studyLanguage": "Study Language",
+    "studyLanguageDescription": "Default language for viewing study materials and translations.",
+    "studyLanguageSaved": "Study language saved",
+    "uiLanguage": "Interface Language",
+    "saveFailed": "Failed to save"
   }
 }
