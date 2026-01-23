@@ -64,7 +64,10 @@
     "generateSummary": "Summarize",
     "generateFlashcards": "Create Flashcards",
     "generateQuiz": "Create Quiz",
-    "privacyHint": "⚠️ Do not upload photos with personal patient data. Use cropping if needed."
+    "privacyHint": "⚠️ Do not upload photos with personal patient data. Use cropping if needed.",
+    "noTranslation": "No translation in {{lang}} yet.",
+    "translateTo": "Translate to {{lang}}",
+    "noText": "No text available"
   },
   "review": {
     "title": "Review",

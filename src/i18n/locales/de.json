@@ -64,7 +64,10 @@
     "generateSummary": "Zusammenfassen",
     "generateFlashcards": "Karten erstellen",
     "generateQuiz": "Quiz erstellen",
-    "privacyHint": "⚠️ Laden Sie keine Fotos mit persönlichen Patientendaten hoch. Verwenden Sie bei Bedarf das Zuschneiden."
+    "privacyHint": "⚠️ Laden Sie keine Fotos mit persönlichen Patientendaten hoch. Verwenden Sie bei Bedarf das Zuschneiden.",
+    "noTranslation": "Keine Übersetzung auf {{lang}} vorhanden.",
+    "translateTo": "Auf {{lang}} übersetzen",
+    "noText": "Kein Text verfügbar"
   },
   "review": {
     "title": "Wiederholung",

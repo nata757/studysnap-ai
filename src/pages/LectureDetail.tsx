@@ -1054,20 +1054,14 @@ export default function LectureDetail() {
                         return (
                           <Button
                             key={lang}
-                            variant={selectedLanguage === lang ? 'default' : 'outline'}
+                            variant={selectedLanguage === lang ? 'default' : available ? 'outline' : 'ghost'}
                             size="sm"
-                            onClick={() => available ? setSelectedLanguage(lang) : handleTranslate(lang)}
-                            disabled={isTranslating}
+                            onClick={() => setSelectedLanguage(lang)}
                             className="text-xs uppercase"
                           >
-                            {isTranslating && !available && selectedLanguage !== lang ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <>
-                                {lang}
-                                {isSource && <span className="ml-1 opacity-50">•</span>}
-                              </>
-                            )}
+                            {lang}
+                            {isSource && <span className="ml-1 opacity-50">•</span>}
+                            {!available && !isSource && <span className="ml-1 opacity-50">?</span>}
                           </Button>
                         );
                       })}
@@ -1094,19 +1088,31 @@ export default function LectureDetail() {
                 ) : isTranslating ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Translating...</p>
+                    <p className="text-sm text-muted-foreground">{t('ai.translating')}</p>
                   </div>
-                ) : translationData ? (
+                ) : translationData && hasTranslation(translationData, selectedLanguage) ? (
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                     {getTextInLanguage(translationData, selectedLanguage)}
                   </pre>
+                ) : translationData ? (
+                  // No translation for selected language - show translate button
+                  <div className="text-center py-8 space-y-4">
+                    <FileText className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      {t('material.noTranslation', { lang: LANGUAGE_NAMES[selectedLanguage] })}
+                    </p>
+                    <Button onClick={() => handleTranslate(selectedLanguage)} disabled={isTranslating}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {t('material.translateTo', { lang: LANGUAGE_NAMES[selectedLanguage] })}
+                    </Button>
+                  </div>
                 ) : material.ocr_text ? (
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
                     {material.ocr_text}
                   </pre>
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    No text available
+                    {t('material.noText')}
                   </p>
                 )}
               </CardContent>
