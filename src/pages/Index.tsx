@@ -90,7 +90,7 @@ export default function Index() {
             </div>
             {dueCardsCount > 0 && (
               <Button asChild size="sm">
-                <Link to="/review">{t('home.startReview')}</Link>
+                <Link to={`/review?lang=${profile?.language || 'ru'}`}>{t('home.startReview')}</Link>
               </Button>
             )}
           </CardContent>

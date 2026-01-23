@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,21 +13,25 @@ import { useProfile } from '@/hooks/useProfile';
 import { Flashcard } from '@/lib/types';
 import { SPACED_REPETITION_INTERVALS } from '@/lib/constants';
 import { addDays, format } from 'date-fns';
-import { Check, X, Eye, PartyPopper, Loader2 } from 'lucide-react';
+import { Check, X, Eye, PartyPopper, Loader2, Sparkles } from 'lucide-react';
 import { LANGUAGE_NAMES } from '@/lib/translations';
 
 export default function Review() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { profile, isLoading: profileLoading } = useProfile();
+  const [searchParams] = useSearchParams();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(0);
+  
+  // Use URL param if provided, otherwise fall back to profile language
+  const reviewLanguage = searchParams.get('lang') || profile?.language || 'ru';
 
   useEffect(() => {
-    if (!user || !profile) return;
+    if (!user) return;
 
     const fetchDueCards = async () => {
       setLoading(true);
@@ -36,7 +41,7 @@ export default function Review() {
         .from('flashcards')
         .select('*')
         .lte('due_date', today)
-        .eq('language', profile.language)
+        .eq('language', reviewLanguage)
         .order('due_date', { ascending: true });
 
       if (data) {
@@ -46,7 +51,7 @@ export default function Review() {
     };
 
     fetchDueCards();
-  }, [user, profile]);
+  }, [user, reviewLanguage]);
 
   const handleAnswer = async (knew: boolean) => {
     const card = cards[currentIndex];
@@ -95,7 +100,7 @@ export default function Review() {
   if (cards.length === 0 || !currentCard) {
     return (
       <AppLayout title={t('review.title')} showLogo={false}>
-        <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <div className="flex h-64 flex-col items-center justify-center gap-4 text-center px-4">
           {completed > 0 ? (
             <>
               <PartyPopper className="h-16 w-16 text-primary" />
@@ -103,12 +108,20 @@ export default function Review() {
             </>
           ) : (
             <>
-              <p className="text-muted-foreground">{t('review.noCards')}</p>
-              {profile && (
-                <Badge variant="outline" className="uppercase">
-                  {t('home.reviewToday')}: {profile.language}
-                </Badge>
-              )}
+              <Sparkles className="h-12 w-12 text-muted-foreground/50" />
+              <div className="space-y-2">
+                <p className="text-muted-foreground">
+                  {t('review.noCardsInLang', { lang: LANGUAGE_NAMES[reviewLanguage as keyof typeof LANGUAGE_NAMES] || reviewLanguage.toUpperCase() })}
+                </p>
+                <p className="text-sm text-muted-foreground/70">
+                  {t('review.generateOrSwitch')}
+                </p>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/profile">{t('review.switchLanguage')}</Link>
+                </Button>
+              </div>
             </>
           )}
         </div>
@@ -124,11 +137,9 @@ export default function Review() {
           <div className="flex justify-between text-sm">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">{t('review.remaining')}: {remaining}</span>
-              {profile && (
-                <Badge variant="outline" className="text-xs uppercase">
-                  {profile.language}
-                </Badge>
-              )}
+              <Badge variant="outline" className="text-xs uppercase">
+                {reviewLanguage}
+              </Badge>
             </div>
             <span className="text-muted-foreground">{completed}/{cards.length}</span>
           </div>

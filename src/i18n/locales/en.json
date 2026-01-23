@@ -73,7 +73,10 @@
     "didntKnow": "Didn't know",
     "showAnswer": "Show Answer",
     "complete": "All done for today! 🎉",
-    "noCards": "No cards to review"
+    "noCards": "No cards to review",
+    "noCardsInLang": "No cards due today in {{lang}}.",
+    "generateOrSwitch": "Generate flashcards or switch language.",
+    "switchLanguage": "Switch Language"
   },
   "search": {
     "title": "Search",
