@@ -99,6 +99,7 @@
     "uiLanguage": "Oberflächensprache",
     "uiLanguageDescription": "Sprache für Schaltflächen, Menüs und Text in der App.",
     "uiLanguageSaved": "Oberflächensprache gespeichert",
+    "languageSaved": "Sprache gespeichert",
     "saveFailed": "Speichern fehlgeschlagen"
   },
   "ai": {
