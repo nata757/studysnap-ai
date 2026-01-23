@@ -4,17 +4,21 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { ConfidenceBadge } from '@/components/ai/ConfidenceBadge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { Flashcard } from '@/lib/types';
 import { SPACED_REPETITION_INTERVALS } from '@/lib/constants';
 import { addDays, format } from 'date-fns';
-import { Check, X, Eye, PartyPopper } from 'lucide-react';
+import { Check, X, Eye, PartyPopper, Loader2 } from 'lucide-react';
+import { LANGUAGE_NAMES } from '@/lib/translations';
 
 export default function Review() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { profile, isLoading: profileLoading } = useProfile();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -22,15 +26,17 @@ export default function Review() {
   const [completed, setCompleted] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     const fetchDueCards = async () => {
+      setLoading(true);
       const today = new Date().toISOString().split('T')[0];
       
       const { data } = await supabase
         .from('flashcards')
         .select('*')
         .lte('due_date', today)
+        .eq('language', profile.language)
         .order('due_date', { ascending: true });
 
       if (data) {
@@ -40,7 +46,7 @@ export default function Review() {
     };
 
     fetchDueCards();
-  }, [user]);
+  }, [user, profile]);
 
   const handleAnswer = async (knew: boolean) => {
     const card = cards[currentIndex];
@@ -75,10 +81,11 @@ export default function Review() {
   const progress = cards.length > 0 ? (completed / cards.length) * 100 : 0;
   const remaining = cards.length - currentIndex;
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <AppLayout title={t('review.title')} showLogo={false}>
-        <div className="flex h-64 items-center justify-center">
+        <div className="flex h-64 flex-col items-center justify-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       </AppLayout>
@@ -95,7 +102,14 @@ export default function Review() {
               <p className="text-xl font-semibold">{t('review.complete')}</p>
             </>
           ) : (
-            <p className="text-muted-foreground">{t('review.noCards')}</p>
+            <>
+              <p className="text-muted-foreground">{t('review.noCards')}</p>
+              {profile && (
+                <Badge variant="outline" className="uppercase">
+                  {t('home.reviewToday')}: {profile.language}
+                </Badge>
+              )}
+            </>
           )}
         </div>
       </AppLayout>
@@ -108,7 +122,14 @@ export default function Review() {
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{t('review.remaining')}: {remaining}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t('review.remaining')}: {remaining}</span>
+              {profile && (
+                <Badge variant="outline" className="text-xs uppercase">
+                  {profile.language}
+                </Badge>
+              )}
+            </div>
             <span className="text-muted-foreground">{completed}/{cards.length}</span>
           </div>
           <Progress value={progress} className="h-2" />

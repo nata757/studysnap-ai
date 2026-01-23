@@ -5,15 +5,19 @@ import { Plus, RotateCcw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { MaterialCard } from '@/components/materials/MaterialCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { Material, Flashcard } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LANGUAGE_NAMES } from '@/lib/translations';
 
 export default function Index() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [dueCardsCount, setDueCardsCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -36,19 +40,29 @@ export default function Index() {
         setMaterials(materialsData as Material[]);
       }
 
-      // Fetch due flashcards count
-      const today = new Date().toISOString().split('T')[0];
-      const { count } = await supabase
-        .from('flashcards')
-        .select('*', { count: 'exact', head: true })
-        .lte('due_date', today);
-
-      setDueCardsCount(count || 0);
       setLoading(false);
     };
 
     fetchData();
   }, [user]);
+
+  // Fetch due cards count filtered by study language
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const fetchDueCount = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const { count } = await supabase
+        .from('flashcards')
+        .select('*', { count: 'exact', head: true })
+        .lte('due_date', today)
+        .eq('language', profile.language);
+
+      setDueCardsCount(count || 0);
+    };
+
+    fetchDueCount();
+  }, [user, profile]);
 
   return (
     <AppLayout>
@@ -61,7 +75,14 @@ export default function Index() {
                 <RotateCcw className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t('home.reviewToday')}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground">{t('home.reviewToday')}</p>
+                  {profile && (
+                    <Badge variant="outline" className="text-xs uppercase">
+                      {profile.language}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-2xl font-bold">
                   {loading ? '...' : dueCardsCount} <span className="text-sm font-normal text-muted-foreground">{t('home.cards')}</span>
                 </p>
