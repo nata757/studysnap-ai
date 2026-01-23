@@ -97,6 +97,10 @@ export default function MaterialDetails() {
       const lectureText = sessionStorage.getItem('lectureText') || '';
       const imagesJson = sessionStorage.getItem('materialImages');
       const images: string[] = imagesJson ? JSON.parse(imagesJson) : [];
+      
+      // Get detected language from OCR (or detect from text as fallback)
+      const savedLanguage = sessionStorage.getItem('detectedLanguage');
+      const sourceLanguage = (savedLanguage as 'ru' | 'de' | 'en') || detectSourceLanguage(lectureText);
 
       // Create draft material first to get materialId
       const materialId = await createDraftMaterial(user.id, topic);
@@ -116,8 +120,7 @@ export default function MaterialDetails() {
         }
       }
 
-      // Create i18n data structure with new format
-      const sourceLanguage = detectSourceLanguage(lectureText);
+      // Create i18n data structure with detected/saved language
       const i18nData = createI18nData(lectureText, sourceLanguage);
       const notes = serializeI18nData(i18nData);
 
@@ -149,6 +152,7 @@ export default function MaterialDetails() {
       sessionStorage.removeItem('materialTopic');
       sessionStorage.removeItem('materialTags');
       sessionStorage.removeItem('pendingOcr');
+      sessionStorage.removeItem('detectedLanguage');
 
       toast.success('Material saved successfully!');
       

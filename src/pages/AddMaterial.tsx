@@ -31,13 +31,8 @@ export default function AddMaterial() {
   const progress = (step / 3) * 100;
 
   const handleNextClick = (e: React.MouseEvent) => {
-    // Prevent any form submission or event bubbling
     e.preventDefault();
     e.stopPropagation();
-    
-    // Debug toast - this MUST appear
-    toast.info('Next clicked');
-    console.log('Next button clicked, images:', images.length);
     
     // Validate: require at least 1 photo
     if (images.length === 0) {
@@ -45,11 +40,13 @@ export default function AddMaterial() {
       return;
     }
     
-    // Store photos in sessionStorage
+    // Store photos in sessionStorage for OCR processing
     sessionStorage.setItem('materialImages', JSON.stringify(images));
     sessionStorage.setItem('pendingOcr', 'true');
+    sessionStorage.removeItem('lectureText'); // Clear old text
+    sessionStorage.removeItem('detectedLanguage');
     
-    // Navigate immediately
+    // Navigate immediately - OCR runs in background on next page
     navigate('/review-text');
   };
 
