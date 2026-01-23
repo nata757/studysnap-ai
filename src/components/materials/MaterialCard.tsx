@@ -7,6 +7,13 @@ import { TOPIC_LABELS } from '@/lib/constants';
 import { formatDistanceToNow } from 'date-fns';
 import { ru, de, enUS } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
+import { 
+  parseI18nData, 
+  getTitleInLanguage, 
+  getTextInLanguage, 
+  SupportedLanguage,
+  LANGUAGE_CODES 
+} from '@/lib/translations';
 
 interface MaterialCardProps {
   material: Material;
@@ -16,14 +23,35 @@ const locales = { ru, de, en: enUS };
 
 export function MaterialCard({ material }: MaterialCardProps) {
   const { t, i18n } = useTranslation();
-  const locale = locales[i18n.language as keyof typeof locales] || ru;
+  const currentLang = i18n.language as SupportedLanguage;
+  const locale = locales[currentLang] || ru;
   
   // Handle nullable arrays from database
   const images = material.images ?? [];
   const tags = material.tags ?? [];
   
+  // Parse i18n data from notes
+  const i18nData = parseI18nData(material.notes);
+  
+  // Get localized title - prefer i18n, fallback to material.title
+  const localizedTitle = i18nData 
+    ? getTitleInLanguage(i18nData, currentLang) 
+    : null;
+  const displayTitle = localizedTitle || material.title || t('material.text');
+  
+  // Get localized text - prefer i18n, fallback to ocr_text
+  const localizedText = i18nData 
+    ? getTextInLanguage(i18nData, currentLang) 
+    : null;
+  const displayText = localizedText || material.ocr_text;
+  
+  // Determine if we're showing original (fallback) content
+  const hasI18nVersion = i18nData?.versions?.[currentLang]?.text;
+  const isShowingOriginal = i18nData && !hasI18nVersion;
+  const sourceLanguage = i18nData?.sourceLanguage;
+  
   const topicLabel = TOPIC_LABELS[material.topic as keyof typeof TOPIC_LABELS]?.[
-    i18n.language as 'ru' | 'de' | 'en'
+    currentLang
   ] || material.topic;
 
   const timeAgo = formatDistanceToNow(new Date(material.created_at), {
@@ -44,8 +72,13 @@ export function MaterialCard({ material }: MaterialCardProps) {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 )}
                 <h3 className="font-medium line-clamp-1">
-                  {material.title || t('material.text')}
+                  {displayTitle}
                 </h3>
+                {isShowingOriginal && sourceLanguage && (
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {t('material.original')}: {LANGUAGE_CODES[sourceLanguage]}
+                  </Badge>
+                )}
               </div>
               
               <div className="flex flex-wrap items-center gap-2">
@@ -59,9 +92,9 @@ export function MaterialCard({ material }: MaterialCardProps) {
                 ))}
               </div>
               
-              {material.ocr_text && (
+              {displayText && (
                 <p className="text-sm text-muted-foreground line-clamp-2">
-                  {material.ocr_text.slice(0, 100)}...
+                  {displayText.slice(0, 100)}...
                 </p>
               )}
               
