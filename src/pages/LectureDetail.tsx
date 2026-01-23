@@ -31,6 +31,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
+import { TranslationPromptDialog } from '@/components/materials/TranslationPromptDialog';
 import { TOPICS } from '@/lib/constants';
 import { Topic, PhotoData } from '@/lib/types';
 import { deletePhoto, deletePhotosWithResults, uploadPhoto } from '@/lib/storage';
@@ -164,6 +165,10 @@ export default function LectureDetail() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [languageInitialized, setLanguageInitialized] = useState(false);
 
+  // Translation prompt dialog state
+  const [showTranslationPrompt, setShowTranslationPrompt] = useState(false);
+  const [pendingAiAction, setPendingAiAction] = useState<'summary' | 'flashcards' | 'quiz' | null>(null);
+
   // Set default language from profile when loaded
   useEffect(() => {
     if (profile && !languageInitialized) {
@@ -171,6 +176,63 @@ export default function LectureDetail() {
       setLanguageInitialized(true);
     }
   }, [profile, languageInitialized]);
+
+  // Helper to get text for AI based on selected language
+  const getTextForAi = (): string | null => {
+    if (!translationData) {
+      return material?.ocr_text || null;
+    }
+    
+    // Check if translation exists for selected language
+    if (hasTranslation(translationData, selectedLanguage)) {
+      return getTextInLanguage(translationData, selectedLanguage);
+    }
+    
+    // Fallback to source text
+    return translationData.originalText || material?.ocr_text || null;
+  };
+
+  // Check if we need to prompt for translation before AI generation
+  const checkTranslationBeforeAi = (action: 'summary' | 'flashcards' | 'quiz'): boolean => {
+    if (!translationData) return true; // No translation data, proceed with source
+    
+    // If selected language has translation or is source, proceed
+    if (hasTranslation(translationData, selectedLanguage)) {
+      return true;
+    }
+    
+    // Need to prompt user
+    setPendingAiAction(action);
+    setShowTranslationPrompt(true);
+    return false;
+  };
+
+  // Handle "Use Source" from translation prompt
+  const handleUseSourceForAi = () => {
+    setShowTranslationPrompt(false);
+    const action = pendingAiAction;
+    setPendingAiAction(null);
+    
+    if (action === 'summary') executeGenerateSummary();
+    else if (action === 'flashcards') executeGenerateFlashcards();
+    else if (action === 'quiz') executeGenerateQuiz();
+  };
+
+  // Handle "Translate & Continue" from translation prompt
+  const handleTranslateAndContinue = async () => {
+    const action = pendingAiAction;
+    
+    // Translate first
+    await handleTranslate(selectedLanguage);
+    
+    setShowTranslationPrompt(false);
+    setPendingAiAction(null);
+    
+    // Then run the AI action
+    if (action === 'summary') executeGenerateSummary();
+    else if (action === 'flashcards') executeGenerateFlashcards();
+    else if (action === 'quiz') executeGenerateQuiz();
+  };
 
   const openLightbox = (index: number) => {
     if (isEditing) return; // Don't open lightbox in edit mode
@@ -523,9 +585,10 @@ export default function LectureDetail() {
     }
   };
 
-  // Generate summary using AI
-  const handleGenerateSummary = async () => {
-    if (!material || !material.ocr_text || !id) {
+  // Execute summary generation (internal - uses getTextForAi)
+  const executeGenerateSummary = async () => {
+    const textForAi = getTextForAi();
+    if (!material || !textForAi || !id) {
       toast.error('No text available to summarize');
       return;
     }
@@ -536,7 +599,7 @@ export default function LectureDetail() {
       const response = await supabase.functions.invoke('generate-summary', {
         body: {
           material_id: id,
-          ocr_text: material.ocr_text,
+          ocr_text: textForAi,
           title: material.title,
           topic: material.topic,
         },
@@ -563,9 +626,17 @@ export default function LectureDetail() {
     }
   };
 
-  // Generate flashcards using AI
-  const handleGenerateFlashcards = async () => {
-    if (!material || !material.ocr_text || !id) {
+  // Public handler - checks translation first
+  const handleGenerateSummary = () => {
+    if (checkTranslationBeforeAi('summary')) {
+      executeGenerateSummary();
+    }
+  };
+
+  // Execute flashcards generation (internal - uses getTextForAi)
+  const executeGenerateFlashcards = async () => {
+    const textForAi = getTextForAi();
+    if (!material || !textForAi || !id) {
       toast.error('No text available to generate flashcards');
       return;
     }
@@ -576,7 +647,7 @@ export default function LectureDetail() {
       const response = await supabase.functions.invoke('generate-flashcards', {
         body: {
           material_id: id,
-          ocr_text: material.ocr_text,
+          ocr_text: textForAi,
           title: material.title,
           topic: material.topic,
           count: 15,
@@ -605,9 +676,17 @@ export default function LectureDetail() {
     }
   };
 
-  // Generate quiz using AI
-  const handleGenerateQuiz = async () => {
-    if (!material || !material.ocr_text || !id) {
+  // Public handler - checks translation first
+  const handleGenerateFlashcards = () => {
+    if (checkTranslationBeforeAi('flashcards')) {
+      executeGenerateFlashcards();
+    }
+  };
+
+  // Execute quiz generation (internal - uses getTextForAi)
+  const executeGenerateQuiz = async () => {
+    const textForAi = getTextForAi();
+    if (!material || !textForAi || !id) {
       toast.error('No text available to generate quiz');
       return;
     }
@@ -620,7 +699,7 @@ export default function LectureDetail() {
       const response = await supabase.functions.invoke('generate-quiz', {
         body: {
           material_id: id,
-          ocr_text: material.ocr_text,
+          ocr_text: textForAi,
           title: material.title,
           topic: material.topic,
           count: 8,
@@ -646,6 +725,13 @@ export default function LectureDetail() {
       toast.error('Failed to generate quiz');
     } finally {
       setIsGeneratingQuiz(false);
+    }
+  };
+
+  // Public handler - checks translation first
+  const handleGenerateQuiz = () => {
+    if (checkTranslationBeforeAi('quiz')) {
+      executeGenerateQuiz();
     }
   };
 
@@ -1534,6 +1620,16 @@ export default function LectureDetail() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Translation prompt dialog */}
+        <TranslationPromptDialog
+          open={showTranslationPrompt}
+          onOpenChange={setShowTranslationPrompt}
+          targetLanguage={selectedLanguage}
+          isTranslating={isTranslating}
+          onTranslateAndContinue={handleTranslateAndContinue}
+          onUseSource={handleUseSourceForAi}
+        />
       </main>
     </div>
   );

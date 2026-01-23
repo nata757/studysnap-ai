@@ -92,5 +92,12 @@
     "studyLanguageSaved": "Study language saved",
     "uiLanguage": "Interface Language",
     "saveFailed": "Failed to save"
+  },
+  "ai": {
+    "noTranslationTitle": "No Translation Available",
+    "noTranslationDescription": "The text hasn't been translated to {{language}} yet. Would you like to translate it first?",
+    "useSource": "Use Source Text",
+    "translateAndContinue": "Translate & Continue",
+    "translating": "Translating..."
   }
 }

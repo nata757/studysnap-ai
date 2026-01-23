@@ -92,5 +92,12 @@
     "studyLanguageSaved": "Lernsprache gespeichert",
     "uiLanguage": "Oberflächensprache",
     "saveFailed": "Speichern fehlgeschlagen"
+  },
+  "ai": {
+    "noTranslationTitle": "Keine Übersetzung verfügbar",
+    "noTranslationDescription": "Der Text wurde noch nicht auf {{language}} übersetzt. Möchten Sie ihn zuerst übersetzen?",
+    "useSource": "Originaltext verwenden",
+    "translateAndContinue": "Übersetzen & Fortfahren",
+    "translating": "Übersetze..."
   }
 }
