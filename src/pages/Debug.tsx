@@ -22,6 +22,7 @@ import {
   createI18nData,
   setVersion,
   getTextInLanguage,
+  getTitleInLanguage,
   SupportedLanguage,
   LANGUAGE_NAMES,
 } from '@/lib/translations';
@@ -107,22 +108,32 @@ export default function Debug() {
     addLog('info', 'Creating DEBUG material...');
     
     try {
-      const testText = {
-        ru: 'Это тестовый материал для отладки. Анатомия человека включает изучение костей, мышц и органов.',
-        de: 'Dies ist ein Test-Material zum Debuggen. Die menschliche Anatomie umfasst das Studium von Knochen, Muskeln und Organen.',
-        en: 'This is a test material for debugging. Human anatomy includes the study of bones, muscles, and organs.',
+      const testData = {
+        ru: { 
+          title: 'Анатомия - Тест',
+          text: 'Это тестовый материал для отладки. Анатомия человека включает изучение костей, мышц и органов.' 
+        },
+        de: { 
+          title: 'Anatomie - Test',
+          text: 'Dies ist ein Test-Material zum Debuggen. Die menschliche Anatomie umfasst das Studium von Knochen, Muskeln und Organen.' 
+        },
+        en: { 
+          title: 'Anatomy - Test',
+          text: 'This is a test material for debugging. Human anatomy includes the study of bones, muscles, and organs.' 
+        },
       };
 
       const sourceLang = currentLang;
-      const i18nData = createI18nData(testText[sourceLang], sourceLang);
+      const sourceData = testData[sourceLang];
+      const i18nData = createI18nData(sourceData.text, sourceLang, sourceData.title);
 
       const { data, error } = await supabase
         .from('materials')
         .insert({
           user_id: user.id,
-          title: `DEBUG Test Material ${Date.now()}`,
+          title: sourceData.title,
           topic: 'Anatomie',
-          ocr_text: testText[sourceLang],
+          ocr_text: sourceData.text,
           notes: serializeI18nData(i18nData),
         })
         .select()
@@ -314,13 +325,25 @@ export default function Debug() {
 
               <Separator />
 
+              {/* Title for current language */}
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-sm font-medium">Title for {currentLang.toUpperCase()}:</span>
+                  {i18nData?.versions[currentLang]?.isManual && (
+                    <Badge variant="secondary" className="text-xs">Manual</Badge>
+                  )}
+                </div>
+                <div className="rounded-md bg-muted p-3 text-sm">
+                  {i18nData ? getTitleInLanguage(i18nData, currentLang) || '(no title)' : 'No i18n data'}
+                </div>
+              </div>
+
+              <Separator />
+
               {/* Text for current language */}
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <span className="text-sm font-medium">Text for {currentLang.toUpperCase()}:</span>
-                  {i18nData?.versions[currentLang]?.isManual && (
-                    <Badge variant="secondary" className="text-xs">Manual</Badge>
-                  )}
                 </div>
                 <div className="rounded-md bg-muted p-3 text-sm">
                   {i18nData ? getTextInLanguage(i18nData, currentLang).substring(0, 300) : 'No i18n data'}

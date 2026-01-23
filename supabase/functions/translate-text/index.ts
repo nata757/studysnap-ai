@@ -16,6 +16,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
 type SupportedLanguage = 'ru' | 'de' | 'en';
 
 interface LanguageVersion {
+  title?: string;
   text: string;
   isManual: boolean;
 }
@@ -25,10 +26,6 @@ interface I18nData {
   versions: Partial<Record<SupportedLanguage, LanguageVersion>>;
 }
 
-interface NotesData {
-  i18n: I18nData;
-}
-
 // Parse notes field to get i18n data
 function parseI18nData(notes: string | null): I18nData | null {
   if (!notes) return null;
@@ -36,24 +33,52 @@ function parseI18nData(notes: string | null): I18nData | null {
   try {
     const parsed = JSON.parse(notes);
     
-    // New format
+    // Current format: { i18n: { sourceLanguage, versions } }
     if (parsed?.i18n?.sourceLanguage && parsed?.i18n?.versions) {
       return parsed.i18n as I18nData;
     }
     
-    // Legacy format
-    if (parsed?.originalText && parsed?.sourceLanguage && parsed?.translations) {
+    // New proposed format: { originalLanguage, originalText: {title, text}, translations }
+    if (parsed?.originalLanguage && parsed?.originalText?.text) {
+      const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
+      versions[parsed.originalLanguage as SupportedLanguage] = {
+        title: parsed.originalText.title,
+        text: parsed.originalText.text,
+        isManual: true,
+      };
+      if (parsed.translations) {
+        for (const [lang, content] of Object.entries(parsed.translations)) {
+          if (content && lang !== parsed.originalLanguage) {
+            const c = content as { title: string; text: string };
+            versions[lang as SupportedLanguage] = {
+              title: c.title,
+              text: c.text,
+              isManual: false,
+            };
+          }
+        }
+      }
+      return {
+        sourceLanguage: parsed.originalLanguage,
+        versions,
+      };
+    }
+    
+    // Legacy format: { originalText (string), sourceLanguage, translations }
+    if (parsed?.originalText && typeof parsed.originalText === 'string' && parsed?.sourceLanguage) {
       const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
       versions[parsed.sourceLanguage as SupportedLanguage] = {
         text: parsed.originalText,
         isManual: true,
       };
-      for (const [lang, text] of Object.entries(parsed.translations)) {
-        if (text && lang !== parsed.sourceLanguage) {
-          versions[lang as SupportedLanguage] = {
-            text: text as string,
-            isManual: false,
-          };
+      if (parsed.translations) {
+        for (const [lang, text] of Object.entries(parsed.translations)) {
+          if (text && lang !== parsed.sourceLanguage) {
+            versions[lang as SupportedLanguage] = {
+              text: text as string,
+              isManual: false,
+            };
+          }
         }
       }
       return {
@@ -75,7 +100,7 @@ serve(async (req) => {
   }
 
   try {
-    const { materialId, targetLanguage, text, sourceLanguage } = await req.json();
+    const { materialId, targetLanguage, text, sourceLanguage, includeTitle } = await req.json();
 
     // Support both new (materialId) and legacy (text+sourceLanguage) calls
     const isLegacyCall = !materialId && text && sourceLanguage;
@@ -113,6 +138,8 @@ serve(async (req) => {
     let i18nData: I18nData;
     let actualSourceLanguage: SupportedLanguage;
     let textToTranslate: string;
+    let titleToTranslate: string | undefined;
+    let shouldTranslateTitle = includeTitle === true;
 
     if (isLegacyCall) {
       // Legacy call - use provided text and source
@@ -130,7 +157,7 @@ serve(async (req) => {
       // New flow - fetch material and check i18n data
       const { data: material, error: fetchError } = await supabase
         .from('materials')
-        .select('notes, ocr_text')
+        .select('notes, ocr_text, title')
         .eq('id', materialId)
         .single();
 
@@ -160,12 +187,15 @@ serve(async (req) => {
       if (existingVersion?.isManual) {
         console.log('Version is manual, returning existing text');
         return new Response(
-          JSON.stringify({ translatedText: existingVersion.text, isManual: true }),
+          JSON.stringify({ 
+            translatedText: existingVersion.text, 
+            translatedTitle: existingVersion.title,
+            isManual: true 
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // If target already exists (auto), still proceed to re-translate
       // Get source text to translate from
       const sourceVersion = parsed.versions[actualSourceLanguage];
       if (!sourceVersion?.text) {
@@ -176,20 +206,34 @@ serve(async (req) => {
       }
 
       textToTranslate = sourceVersion.text;
+      
+      // Get title if we should translate it
+      if (shouldTranslateTitle) {
+        titleToTranslate = sourceVersion.title || material.title;
+      }
 
       // Same language check
       if (actualSourceLanguage === targetLanguage) {
         return new Response(
-          JSON.stringify({ translatedText: textToTranslate }),
+          JSON.stringify({ 
+            translatedText: textToTranslate,
+            translatedTitle: titleToTranslate 
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
-    console.log(`Translating from ${actualSourceLanguage} to ${targetLanguage}, text length: ${textToTranslate.length}`);
+    console.log(`Translating from ${actualSourceLanguage} to ${targetLanguage}, text length: ${textToTranslate.length}, includeTitle: ${shouldTranslateTitle}`);
 
     const sourceLangName = LANGUAGE_NAMES[actualSourceLanguage] || actualSourceLanguage;
     const targetLangName = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
+
+    // Prepare content for translation
+    let contentToTranslate = textToTranslate;
+    if (shouldTranslateTitle && titleToTranslate) {
+      contentToTranslate = `TITLE: ${titleToTranslate}\n\nCONTENT:\n${textToTranslate}`;
+    }
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -202,7 +246,29 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
+            content: shouldTranslateTitle 
+              ? `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
+
+The input has this format:
+TITLE: [title text]
+
+CONTENT:
+[main content]
+
+You MUST return your response in this EXACT format:
+TITLE: [translated title]
+
+CONTENT:
+[translated content]
+
+RULES:
+1. Preserve ALL medical terminology accurately
+2. Keep the original text structure (paragraphs, bullet points, numbering)
+3. Maintain abbreviations in their common form for the target language
+4. If a term has no direct translation, keep the original with a translation in parentheses
+5. Return ONLY the translated text in the format above, no explanations
+6. Preserve formatting markers like [unclear] as-is`
+              : `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
 
 RULES:
 1. Preserve ALL medical terminology accurately
@@ -214,7 +280,7 @@ RULES:
           },
           {
             role: 'user',
-            content: textToTranslate
+            content: contentToTranslate
           }
         ],
         max_tokens: 8192,
@@ -232,9 +298,9 @@ RULES:
     }
 
     const data = await response.json();
-    const translatedText = data.choices?.[0]?.message?.content || '';
+    const rawResult = data.choices?.[0]?.message?.content || '';
 
-    if (!translatedText) {
+    if (!rawResult) {
       console.error('Empty translation result');
       return new Response(
         JSON.stringify({ error: 'Translation returned empty result' }),
@@ -242,15 +308,29 @@ RULES:
       );
     }
 
-    const trimmedTranslation = translatedText.trim();
-    console.log(`Translation completed, result length: ${trimmedTranslation.length}`);
+    let translatedText: string;
+    let translatedTitle: string | undefined;
+
+    // Parse the result based on whether we requested title translation
+    if (shouldTranslateTitle && titleToTranslate) {
+      const titleMatch = rawResult.match(/TITLE:\s*(.+?)(?:\n\n|$)/s);
+      const contentMatch = rawResult.match(/CONTENT:\s*(.+)/s);
+      
+      translatedTitle = titleMatch?.[1]?.trim();
+      translatedText = contentMatch?.[1]?.trim() || rawResult.trim();
+    } else {
+      translatedText = rawResult.trim();
+    }
+
+    console.log(`Translation completed, text length: ${translatedText.length}${translatedTitle ? `, title: "${translatedTitle}"` : ''}`);
 
     // For new flow, save translation to database
     if (!isLegacyCall && materialId) {
       const updatedVersions = {
         ...i18nData!.versions,
         [targetLanguage]: {
-          text: trimmedTranslation,
+          ...(translatedTitle && { title: translatedTitle }),
+          text: translatedText,
           isManual: false,
         },
       };
@@ -276,7 +356,11 @@ RULES:
     }
 
     return new Response(
-      JSON.stringify({ translatedText: trimmedTranslation, isManual: false }),
+      JSON.stringify({ 
+        translatedText, 
+        translatedTitle,
+        isManual: false 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
