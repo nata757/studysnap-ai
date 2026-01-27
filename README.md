@@ -76,4 +76,5 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/c
 
 StudySnap is a learning app for Pflegeassistenz students.
 It helps organize notes, quizzes and daily study tasks.
+Update README in Feature branch.
 
