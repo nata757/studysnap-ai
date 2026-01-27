@@ -4,7 +4,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -32,20 +34,24 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are an AI assistant for medical students preparing for exams.
-Your task is to create multiple-choice quiz questions for exam practice.
+    Your task is to create multiple-choice quiz questions for exam practice.
 
-CRITICAL RULES:
-1. ONLY use information explicitly stated in the provided text
-2. NEVER invent, assume, or add facts not present in the source
-3. If information is unclear:
-   - Set confidence to "low"
-   - Note in explanation that source was unclear
-4. Create exactly 4 options per question (A, B, C, D)
-5. Make wrong options plausible but clearly incorrect based on the material
-6. Provide clear explanations referencing the source material
-7. Preserve medical terminology exactly as written
+    IMPORTANT:
+    Generate questions and explanations strictly in language: ${language}.
 
-Create exactly ${count} questions.`;
+    CRITICAL RULES:
+    1. ONLY use information explicitly stated in the provided text
+    2. NEVER invent, assume, or add facts not present in the source
+    3. If information is unclear:
+       - Set confidence to "low"
+       - Note in explanation that source was unclear
+    4. Create exactly 4 options per question (A, B, C, D)
+    5. Make wrong options plausible but clearly incorrect based on the material
+    6. Provide clear explanations referencing the source material
+    7. Preserve medical terminology exactly as written
+
+    Create exactly ${count} questions.`;
+
 
     const userPrompt = `Create ${count} multiple-choice quiz questions from this lecture material:
 
@@ -157,13 +163,31 @@ ${ocr_text}`;
       );
     }
 
-    const quizData = JSON.parse(toolCall.function.arguments);
+  let quizData: any;
+  try {
+    quizData = JSON.parse(toolCall.function.arguments);
+  } catch (e) {
+    console.error('Failed to parse tool arguments:', toolCall.function.arguments);
+    return new Response(
+      JSON.stringify({ error: 'Invalid AI tool arguments' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
     console.log('Parsed quiz questions:', quizData.questions?.length);
 
     // Save to database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: 'Supabase env not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
+
 
     // Delete existing quiz questions for this material AND language
     await supabase
