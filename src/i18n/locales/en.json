@@ -108,6 +108,22 @@
     "noTranslationDescription": "The text hasn't been translated to {{language}} yet. Would you like to translate it first?",
     "useSource": "Use Source Text",
     "translateAndContinue": "Translate & Continue",
-    "translating": "Translating..."
+    "translating": "Translating...",
+    "studyTools": "AI Study Tools",
+    "summarize": "Summarize",
+    "flashcards": "Flashcards",
+    "quiz": "Quiz",
+    "generating": "Generating...",
+    "safetyNote": "AI uses only your text. If something is missing, it will mark it as low confidence and ask to clarify.",
+    "noSummaryInLang": "No summary in {{lang}} yet.",
+    "generateIn": "Generate in {{lang}}",
+    "noFlashcardsInLang": "No flashcards in {{lang}} yet.",
+    "noQuizInLang": "No quiz in {{lang}} yet.",
+    "generatingSummary": "Generating summary...",
+    "generatingFlashcards": "Generating flashcards...",
+    "generatingQuiz": "Generating quiz...",
+    "needsClarification": "Needs clarification",
+    "notes": "Notes",
+    "startReview": "Start Review"
   }
 }

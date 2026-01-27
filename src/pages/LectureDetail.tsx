@@ -1181,7 +1181,7 @@ export default function LectureDetail() {
                 {isGeneratingSummary ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Generating summary...</p>
+                    <p className="text-sm text-muted-foreground">{t('ai.generatingSummary')}</p>
                   </div>
                 ) : summary ? (
                   <>
@@ -1190,7 +1190,7 @@ export default function LectureDetail() {
                       <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
                         <div className="flex items-center gap-2 text-warning text-sm font-medium">
                           <Info className="h-4 w-4" />
-                          Needs clarification
+                          {t('ai.needsClarification')}
                         </div>
                         <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
                           {summary.warnings.map((warning, idx) => (
@@ -1217,11 +1217,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No summary in {LANGUAGE_NAMES[studyLanguage]} yet.
+                      {t('ai.noSummaryInLang', { lang: LANGUAGE_NAMES[studyLanguage] })}
                     </p>
                     <Button onClick={handleGenerateSummary} disabled={isGeneratingSummary}>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      Generate in {studyLanguage.toUpperCase()}
+                      {t('ai.generateIn', { lang: studyLanguage.toUpperCase() })}
                     </Button>
                   </div>
                 )}
@@ -1243,7 +1243,7 @@ export default function LectureDetail() {
                 {isGeneratingFlashcards ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Generating flashcards...</p>
+                    <p className="text-sm text-muted-foreground">{t('ai.generatingFlashcards')}</p>
                   </div>
                 ) : flashcards.length > 0 ? (
                   <>
@@ -1252,7 +1252,7 @@ export default function LectureDetail() {
                       <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
                         <div className="flex items-center gap-2 text-warning text-sm font-medium">
                           <Info className="h-4 w-4" />
-                          Notes
+                          {t('ai.notes')}
                         </div>
                         <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
                           {flashcardWarnings.map((warning, idx) => (
@@ -1268,7 +1268,7 @@ export default function LectureDetail() {
                       onClick={() => navigate('/review')}
                     >
                       <BookOpen className="h-4 w-4 mr-2" />
-                      Start Review
+                      {t('ai.startReview')}
                     </Button>
                     
                     {/* Flashcards list */}
@@ -1299,11 +1299,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No flashcards in {LANGUAGE_NAMES[studyLanguage]} yet.
+                      {t('ai.noFlashcardsInLang', { lang: LANGUAGE_NAMES[studyLanguage] })}
                     </p>
                     <Button onClick={handleGenerateFlashcards} disabled={isGeneratingFlashcards}>
                       <BookOpen className="mr-2 h-4 w-4" />
-                      Generate in {studyLanguage.toUpperCase()}
+                      {t('ai.generateIn', { lang: studyLanguage.toUpperCase() })}
                     </Button>
                   </div>
                 )}
@@ -1327,7 +1327,7 @@ export default function LectureDetail() {
                 {isGeneratingQuiz ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Generating quiz...</p>
+                    <p className="text-sm text-muted-foreground">{t('ai.generatingQuiz')}</p>
                   </div>
                 ) : quizQuestions.length > 0 ? (
                   <>
@@ -1336,7 +1336,7 @@ export default function LectureDetail() {
                       <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 space-y-2">
                         <div className="flex items-center gap-2 text-warning text-sm font-medium">
                           <Info className="h-4 w-4" />
-                          Notes
+                          {t('ai.notes')}
                         </div>
                         <ul className="text-xs text-warning-foreground space-y-1 ml-6 list-disc">
                           {quizWarnings.map((warning, idx) => (
@@ -1431,11 +1431,11 @@ export default function LectureDetail() {
                   <div className="text-center py-8 space-y-4">
                     <HelpCircle className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      No quiz in {LANGUAGE_NAMES[studyLanguage]} yet.
+                      {t('ai.noQuizInLang', { lang: LANGUAGE_NAMES[studyLanguage] })}
                     </p>
                     <Button onClick={handleGenerateQuiz} disabled={isGeneratingQuiz}>
                       <HelpCircle className="mr-2 h-4 w-4" />
-                      Generate in {studyLanguage.toUpperCase()}
+                      {t('ai.generateIn', { lang: studyLanguage.toUpperCase() })}
                     </Button>
                   </div>
                 )}
@@ -1541,7 +1541,7 @@ export default function LectureDetail() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                AI Study Tools
+                {t('ai.studyTools')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1559,7 +1559,7 @@ export default function LectureDetail() {
                     <FileText className="h-5 w-5 text-primary" />
                   )}
                   <span className="text-xs font-medium">
-                    {isGeneratingSummary ? 'Generating...' : 'Summarize'}
+                    {isGeneratingSummary ? t('ai.generating') : t('ai.summarize')}
                   </span>
                 </Button>
                 <Button
@@ -1574,7 +1574,7 @@ export default function LectureDetail() {
                     <BookOpen className="h-5 w-5 text-primary" />
                   )}
                   <span className="text-xs font-medium">
-                    {isGeneratingFlashcards ? 'Generating...' : 'Flashcards'}
+                    {isGeneratingFlashcards ? t('ai.generating') : t('ai.flashcards')}
                   </span>
                 </Button>
                 <Button
@@ -1589,7 +1589,7 @@ export default function LectureDetail() {
                     <HelpCircle className="h-5 w-5 text-primary" />
                   )}
                   <span className="text-xs font-medium">
-                    {isGeneratingQuiz ? 'Generating...' : 'Quiz'}
+                    {isGeneratingQuiz ? t('ai.generating') : t('ai.quiz')}
                   </span>
                 </Button>
               </div>
@@ -1598,7 +1598,7 @@ export default function LectureDetail() {
               <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
                 <Info className="h-4 w-4 mt-0.5 shrink-0" />
                 <p>
-                  AI uses only your text. If something is missing, it will mark it as low confidence and ask to clarify.
+                  {t('ai.safetyNote')}
                 </p>
               </div>
             </CardContent>

@@ -108,6 +108,22 @@
     "noTranslationDescription": "Der Text wurde noch nicht auf {{language}} übersetzt. Möchten Sie ihn zuerst übersetzen?",
     "useSource": "Originaltext verwenden",
     "translateAndContinue": "Übersetzen & Fortfahren",
-    "translating": "Übersetze..."
+    "translating": "Übersetze...",
+    "studyTools": "KI-Lerntools",
+    "summarize": "Zusammenfassen",
+    "flashcards": "Karteikarten",
+    "quiz": "Quiz",
+    "generating": "Generieren...",
+    "safetyNote": "KI verwendet nur Ihren Text. Fehlende Informationen werden mit niedriger Konfidenz markiert und zur Klärung angefragt.",
+    "noSummaryInLang": "Keine Zusammenfassung auf {{lang}} vorhanden.",
+    "generateIn": "Auf {{lang}} generieren",
+    "noFlashcardsInLang": "Keine Karteikarten auf {{lang}} vorhanden.",
+    "noQuizInLang": "Kein Quiz auf {{lang}} vorhanden.",
+    "generatingSummary": "Zusammenfassung wird erstellt...",
+    "generatingFlashcards": "Karteikarten werden erstellt...",
+    "generatingQuiz": "Quiz wird erstellt...",
+    "needsClarification": "Klärung erforderlich",
+    "notes": "Hinweise",
+    "startReview": "Wiederholung starten"
   }
 }

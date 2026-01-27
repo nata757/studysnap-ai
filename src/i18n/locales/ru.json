@@ -108,6 +108,22 @@
     "noTranslationDescription": "Текст ещё не переведён на {{language}}. Хотите сначала перевести?",
     "useSource": "Использовать оригинал",
     "translateAndContinue": "Перевести и продолжить",
-    "translating": "Перевод..."
+    "translating": "Перевод...",
+    "studyTools": "AI-инструменты",
+    "summarize": "Конспект",
+    "flashcards": "Карточки",
+    "quiz": "Тест",
+    "generating": "Генерация...",
+    "safetyNote": "AI использует только ваш текст. Если чего-то не хватает, это будет отмечено как низкая уверенность.",
+    "noSummaryInLang": "Нет конспекта на {{lang}}.",
+    "generateIn": "Сгенерировать на {{lang}}",
+    "noFlashcardsInLang": "Нет карточек на {{lang}}.",
+    "noQuizInLang": "Нет теста на {{lang}}.",
+    "generatingSummary": "Создание конспекта...",
+    "generatingFlashcards": "Создание карточек...",
+    "generatingQuiz": "Создание теста...",
+    "needsClarification": "Требуется уточнение",
+    "notes": "Заметки",
+    "startReview": "Начать повторение"
   }
 }
