@@ -601,14 +601,28 @@ export default function LectureDetail() {
   const fetchQuizQuestions = async (lang: SupportedLanguage) => {
     if (!id) return;
     
-    const { data } = await supabase
+    // Clear previous quiz data immediately to prevent showing wrong language
+    setQuizQuestions([]);
+    setQuizAnswers({});
+    setShowQuizResults(false);
+    
+    const { data, error } = await supabase
       .from('quiz_questions')
       .select('*')
       .eq('material_id', id)
       .eq('language', lang)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
     
-    if (data) {
+    // Debug logging
+    console.log(`[Quiz] Fetching for lang=${lang}, got ${data?.length ?? 0} questions`, 
+      data?.map(q => ({ id: q.id, lang: q.language })));
+    
+    if (error) {
+      console.error('[Quiz] Fetch error:', error);
+      return;
+    }
+    
+    if (data && data.length > 0) {
       // Parse options from JSON if needed
       const parsed = data.map(q => ({
         ...q,
@@ -623,6 +637,12 @@ export default function LectureDetail() {
   // Refetch all AI content when GLOBAL study language changes
   useEffect(() => {
     if (id && profile) {
+      console.log(`[AI Content] Language changed to: ${studyLanguage}`);
+      // Clear all AI content before fetching new language
+      setSummary(null);
+      setFlashcards([]);
+      setQuizQuestions([]);
+      
       fetchSummary(studyLanguage);
       fetchFlashcards(studyLanguage);
       fetchQuizQuestions(studyLanguage);
@@ -1315,7 +1335,13 @@ export default function LectureDetail() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Quiz</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">Quiz</CardTitle>
+                    {/* Debug badge showing current filter language */}
+                    <Badge variant="outline" className="text-xs">
+                      {studyLanguage.toUpperCase()}
+                    </Badge>
+                  </div>
                   {showQuizResults && (
                     <Badge variant={getQuizScore().correct === getQuizScore().total ? 'default' : 'secondary'}>
                       {getQuizScore().correct}/{getQuizScore().total} correct
