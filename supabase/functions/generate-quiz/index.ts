@@ -41,16 +41,9 @@ serve(async (req) => {
 
     CRITICAL RULES:
     1. ONLY use information explicitly stated in the provided text
-    2. NEVER invent, assume, or add facts not present in the source
-    3. If information is unclear:
-       - Set confidence to "low"
-       - Note in explanation that source was unclear
-    4. Create exactly 4 options per question (A, B, C, D)
-    5. Make wrong options plausible but clearly incorrect based on the material
-    6. Provide clear explanations referencing the source material
-    7. Preserve medical terminology exactly as written
-
+    ...
     Create exactly ${count} questions.`;
+
 
 
     const userPrompt = `Create ${count} multiple-choice quiz questions from this lecture material:
@@ -163,17 +156,19 @@ ${ocr_text}`;
       );
     }
 
-  let quizData: any;
-  try {
-    quizData = JSON.parse(toolCall.function.arguments);
-  } catch (e) {
-    console.error('Failed to parse tool arguments:', toolCall.function.arguments);
-    return new Response(
-      JSON.stringify({ error: 'Invalid AI tool arguments' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+    let quizData: any;
+    try {
+      quizData = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error('Failed to parse tool arguments:', toolCall.function.arguments);
+      return new Response(
+        JSON.stringify({ error: 'Invalid AI tool arguments' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Parsed quiz questions:', quizData.questions?.length);
+
 
     // Save to database
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
