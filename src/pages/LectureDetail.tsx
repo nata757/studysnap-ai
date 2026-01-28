@@ -658,7 +658,7 @@ export default function LectureDetail() {
     }
 
     setIsGeneratingSummary(true);
-    
+
     try {
       const response = await supabase.functions.invoke('generate-summary', {
         body: {
@@ -672,7 +672,8 @@ export default function LectureDetail() {
 
       if (response.error) {
         console.error('Summary error:', response.error);
-        toast.error(response.error.message || 'Failed to generate summary');
+        const errorMsg = response.error.message || 'Failed to generate summary';
+        toast.error(errorMsg);
         return;
       }
 
