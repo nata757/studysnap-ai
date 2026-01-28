@@ -660,17 +660,6 @@ export default function LectureDetail() {
     setIsGeneratingSummary(true);
     
     try {
-      console.log("SUPABASE_URL", import.meta.env.VITE_SUPABASE_URL);
-console.log("SUPABASE_KEY", import.meta.env.VITE_SUPABASE_ANON_KEY ? "OK (exists)" : "MISSING");
-
-console.log("INVOKE generate-summary payload", {
-  material_id: id,
-  ocr_text: textForAi,
-  title: material?.title,
-  topic: material?.topic,
-  language: studyLanguage,
-});
-
       const response = await supabase.functions.invoke('generate-summary', {
         body: {
           material_id: id,
@@ -680,9 +669,6 @@ console.log("INVOKE generate-summary payload", {
           language: studyLanguage,
         },
       });
-      console.log("INVOKE RESULT generate-summary", response);
-      console.log("INVOKE ERROR?", response?.error);
-      console.log("INVOKE DATA?", response?.data);
 
       if (response.error) {
         console.error('Summary error:', response.error);
