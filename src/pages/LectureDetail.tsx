@@ -671,11 +671,7 @@ console.log("INVOKE generate-summary payload", {
   language: studyLanguage,
 });
 
-      const response = await supabase.functions.invoke('generate-summary', 
-                                                       console.log("INVOKE RESULT generate-summary", response);
-console.log("INVOKE ERROR?", response?.error);
-console.log("INVOKE DATA?", response?.data);
-{
+      const response = await supabase.functions.invoke('generate-summary', {
         body: {
           material_id: id,
           ocr_text: textForAi,
@@ -684,6 +680,9 @@ console.log("INVOKE DATA?", response?.data);
           language: studyLanguage,
         },
       });
+      console.log("INVOKE RESULT generate-summary", response);
+      console.log("INVOKE ERROR?", response?.error);
+      console.log("INVOKE DATA?", response?.data);
 
       if (response.error) {
         console.error('Summary error:', response.error);
