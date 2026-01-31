@@ -11,10 +11,7 @@ const corsHeaders = {
 type I18nNotes = {
   i18n?: {
     sourceLanguage?: string;
-    versions?: Record<
-      string,
-      { title?: string; text?: string; isManual?: boolean }
-    >;
+    versions?: Record<string, { title?: string; text?: string; isManual?: boolean }>;
   };
   originalText?: { title?: string; text?: string };
   text?: string;
@@ -22,11 +19,29 @@ type I18nNotes = {
   ocr_text?: string;
 };
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+/** -----------------------------
+ *  Унифицированные ответы
+ *  Всегда 200, чтобы фронт не ломался из-за non-2xx.
+ *  -----------------------------
+ */
+function jsonOk(data: unknown) {
+  return new Response(
+    JSON.stringify({ success: true, code: "OK", message: null, data }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+function jsonFail(params: { code: string; message: string; status?: number; details?: unknown }) {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      code: params.code,
+      message: params.message,
+      status: params.status ?? 200,
+      details: params.details ?? null,
+    }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 }
 
 function safeTrim(v: unknown): string | null {
@@ -35,7 +50,10 @@ function safeTrim(v: unknown): string | null {
   return t.length ? t : null;
 }
 
-function pickTextFromNotes(notes: any, language: string): { text: string | null; title: string | null; sourceLanguage: string | null } {
+function pickTextFromNotes(
+  notes: any,
+  language: string,
+): { text: string | null; title: string | null; sourceLanguage: string | null } {
   const n: I18nNotes | null = notes && typeof notes === "object" ? notes : null;
 
   const sourceLanguage =
@@ -82,14 +100,23 @@ function extractToolArgs(data: any): any {
   try {
     return JSON.parse(args);
   } catch {
-    // Helpful for debugging broken JSON from models
     const preview = args.length > 800 ? args.slice(0, 800) + "..." : args;
     throw new Error("Failed to parse AI tool arguments JSON. Preview: " + preview);
   }
 }
 
+function mapAiStatusToCode(status: number) {
+  if (status === 402) return "CREDITS_EXHAUSTED";
+  if (status === 429) return "RATE_LIMITED";
+  if (status === 401) return "UNAUTHORIZED";
+  if (status === 403) return "FORBIDDEN";
+  if (status >= 500) return "AI_UPSTREAM_ERROR";
+  return "AI_REQUEST_FAILED";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
+    // Preflight can be 204 as usual
     return new Response("ok", { status: 204, headers: corsHeaders });
   }
 
@@ -105,7 +132,7 @@ serve(async (req) => {
     } = payload ?? {};
 
     if (!material_id) {
-      return jsonResponse({ error: "material_id is required" }, 400);
+      return jsonFail({ code: "BAD_REQUEST", message: "material_id is required", status: 400 });
     }
 
     // Supabase env + client
@@ -113,7 +140,11 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
-      return jsonResponse({ error: "Supabase env not configured" }, 500);
+      return jsonFail({
+        code: "CONFIG_MISSING",
+        message: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured",
+        status: 500,
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -131,7 +162,12 @@ serve(async (req) => {
 
       if (matErr) {
         console.error("[Quiz] Failed to load material:", matErr);
-        return jsonResponse({ error: "Failed to load material" }, 500);
+        return jsonFail({
+          code: "DB_READ_FAILED",
+          message: "Failed to load material",
+          status: 500,
+          details: matErr,
+        });
       }
 
       const picked = pickTextFromNotes(material?.notes, language);
@@ -155,16 +191,21 @@ serve(async (req) => {
     }
 
     if (!sourceText) {
-      return jsonResponse(
-        { error: `No text found for material_id=${material_id} lang=${language}` },
-        400,
-      );
+      return jsonFail({
+        code: "NO_SOURCE_TEXT",
+        message: `No text found for material_id=${material_id} lang=${language}`,
+        status: 400,
+      });
     }
 
     // Lovable AI Gateway key
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      return jsonResponse({ error: "API key not configured" }, 500);
+      return jsonFail({
+        code: "CONFIG_MISSING",
+        message: "LOVABLE_API_KEY not configured",
+        status: 500,
+      });
     }
 
     // Prompts
@@ -190,126 +231,114 @@ ${sourceTitle ? `Title: ${sourceTitle}\n` : ""}${topic ? `Topic: ${topic}\n` : "
 LECTURE TEXT:
 ${sourceText}`;
 
-    const aiResp = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "generate_quiz",
-                description: "Generate multiple-choice quiz questions",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    questions: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          question: {
-                            type: "string",
-                            description: "The question text",
-                          },
-                          options: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Exactly 4 answer options",
-                          },
-                          correctIndex: {
-                            type: "number",
-                            description: "Index of correct answer (0-3)",
-                          },
-                          explanation: {
-                            type: "string",
-                            description: "Why the correct answer is right",
-                          },
-                          confidence: {
-                            type: "string",
-                            enum: ["high", "medium", "low"],
-                            description: "Confidence based on source clarity",
-                          },
+    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "generate_quiz",
+              description: "Generate multiple-choice quiz questions",
+              parameters: {
+                type: "object",
+                properties: {
+                  questions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        question: { type: "string", description: "The question text" },
+                        options: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "Exactly 4 answer options",
                         },
-                        required: [
-                          "question",
-                          "options",
-                          "correctIndex",
-                          "explanation",
-                          "confidence",
-                        ],
-                        additionalProperties: false,
+                        correctIndex: {
+                          type: "number",
+                          description: "Index of correct answer (0-3)",
+                        },
+                        explanation: { type: "string", description: "Why the correct answer is right" },
+                        confidence: {
+                          type: "string",
+                          enum: ["high", "medium", "low"],
+                          description: "Confidence based on source clarity",
+                        },
                       },
-                    },
-                    warnings: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "Any issues or unclear content",
+                      required: ["question", "options", "correctIndex", "explanation", "confidence"],
+                      additionalProperties: false,
                     },
                   },
-                  required: ["questions", "warnings"],
-                  additionalProperties: false,
+                  warnings: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Any issues or unclear content",
+                  },
                 },
+                required: ["questions", "warnings"],
+                additionalProperties: false,
               },
             },
-          ],
-          tool_choice: { type: "function", function: { name: "generate_quiz" } },
-        }),
-      },
-    );
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "generate_quiz" } },
+      }),
+    });
 
     if (!aiResp.ok) {
-      const errorText = await aiResp.text();
-      console.error("[Quiz] AI Gateway error:", aiResp.status, errorText);
+      const errorText = await aiResp.text().catch(() => "");
+      console.error("[Quiz] AI error:", aiResp.status, errorText);
 
-      if (aiResp.status === 429) {
-        return jsonResponse(
-          { error: "Rate limit exceeded. Please try again later." },
-          429,
-        );
-      }
-      if (aiResp.status === 402) {
-        return jsonResponse(
-          { error: "AI credits exhausted. Please add funds." },
-          402,
-        );
-      }
-
-      // временно добавляем details, чтобы не гадать
-      return jsonResponse(
-        { error: "Quiz generation failed", details: errorText },
-        500,
-      );
+      return jsonFail({
+        code: mapAiStatusToCode(aiResp.status),
+        message: "Quiz generation failed",
+        status: aiResp.status,
+        details: errorText,
+      });
     }
 
-    const data = await aiResp.json();
+    const data = await aiResp.json().catch(() => null);
+    if (!data) {
+      return jsonFail({
+        code: "AI_BAD_RESPONSE",
+        message: "Failed to parse AI JSON response",
+        status: 500,
+      });
+    }
+
     let quizData: any;
     try {
       quizData = extractToolArgs(data);
     } catch (e) {
       console.error("[Quiz] Tool args parse error:", e);
       console.error("[Quiz] Raw AI response:", JSON.stringify(data));
-      return jsonResponse({ error: "Invalid AI response format" }, 500);
+      return jsonFail({
+        code: "AI_INVALID_FORMAT",
+        message: "Invalid AI response format",
+        status: 500,
+        details: (e instanceof Error ? e.message : String(e)),
+      });
     }
 
     const questions = Array.isArray(quizData?.questions) ? quizData.questions : [];
     console.log("[Quiz] Parsed questions:", questions.length);
 
     if (!questions.length) {
-      return jsonResponse(
-        { error: "AI returned no questions", raw: quizData ?? null },
-        500,
-      );
+      return jsonFail({
+        code: "AI_EMPTY_QUESTIONS",
+        message: "AI returned no questions",
+        status: 500,
+        details: quizData ?? null,
+      });
     }
 
     // Delete existing for material + language
@@ -321,7 +350,12 @@ ${sourceText}`;
 
     if (delRes.error) {
       console.error("[Quiz] Delete error:", delRes.error);
-      return jsonResponse({ error: "Failed to clear old quiz questions" }, 500);
+      return jsonFail({
+        code: "DB_DELETE_FAILED",
+        message: "Failed to clear old quiz questions",
+        status: 500,
+        details: delRes.error,
+      });
     }
 
     // Insert
@@ -342,18 +376,25 @@ ${sourceText}`;
 
     if (insErr) {
       console.error("[Quiz] Insert error:", insErr);
-      return jsonResponse({ error: "Failed to save quiz questions" }, 500);
+      return jsonFail({
+        code: "DB_INSERT_FAILED",
+        message: "Failed to save quiz questions",
+        status: 500,
+        details: insErr,
+      });
     }
 
-    return jsonResponse({
+    return jsonOk({
       questions: inserted,
       warnings: quizData?.warnings || [],
     });
   } catch (error) {
     console.error("[Quiz] Unhandled error:", error);
-    return jsonResponse(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
+    return jsonFail({
+      code: "INTERNAL_ERROR",
+      message: error instanceof Error ? error.message : "Unknown error",
+      status: 500,
+      details: error,
+    });
   }
 });

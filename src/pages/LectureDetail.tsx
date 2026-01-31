@@ -1,13 +1,33 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, FileText, Image, Calendar, Tag, Loader2, Pencil, Trash2, X, Save, MoreVertical, Plus, Sparkles, BookOpen, HelpCircle, Info } from 'lucide-react';
+
+import {
+  ArrowLeft,
+  FileText,
+  Image,
+  Calendar,
+  Tag,
+  Loader2,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  MoreVertical,
+  Plus,
+  Sparkles,
+  BookOpen,
+  HelpCircle,
+  Info,
+} from 'lucide-react';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,34 +46,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+
 import { ImageLightbox } from '@/components/materials/ImageLightbox';
 import { TranslationPromptDialog } from '@/components/materials/TranslationPromptDialog';
+
 import { TOPICS } from '@/lib/constants';
 import { Topic, PhotoData } from '@/lib/types';
 import { deletePhoto, deletePhotosWithResults, uploadPhoto } from '@/lib/storage';
-import { 
-  parseTranslationData, 
-  serializeTranslationData, 
-  TranslationData, 
+
+import {
+  parseTranslationData,
+  serializeTranslationData,
+  TranslationData,
   SupportedLanguage,
   getTextInLanguage,
-  getTitleInLanguage,
   hasTranslation,
-  getAvailableLanguages,
   LANGUAGE_NAMES,
   LANGUAGE_CODES,
   setTranslation,
   setVersion,
-  setTitle,
-  setFullVersion,
   createTranslationData,
   detectSourceLanguage,
-  isVersionManual
+  isVersionManual,
 } from '@/lib/translations';
 
 interface Material {
@@ -110,7 +132,7 @@ interface EditForm {
 type SummaryLevel = 'short' | 'medium' | 'long';
 
 export default function LectureDetail() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -751,49 +773,54 @@ export default function LectureDetail() {
 
   // Execute quiz generation (internal - uses getTextForAi)
   const executeGenerateQuiz = async () => {
-    const textForAi = getTextForAi();
-    if (!material || !textForAi || !id) {
-      toast.error('No text available to generate quiz');
+  const textForAi = getTextForAi();
+  if (!material || !textForAi || !id) {
+    toast.error('No text available to generate quiz');
+    return;
+  }
+
+  setIsGeneratingQuiz(true);
+  setQuizAnswers({});
+  setShowQuizResults(false);
+
+  try {
+    // Важно: для AI используем именно studyLanguage (глобальный учебный язык),
+    // а не i18n.language (язык интерфейса).
+    const lang: SupportedLanguage = (studyLanguage as SupportedLanguage) || 'ru';
+
+    const response = await supabase.functions.invoke('generate-quiz', {
+      body: {
+        material_id: id,
+        ocr_text: textForAi,
+        title: material.title,
+        topic: material.topic,
+        count: 8,
+        language: studyLanguage as 'ru' | 'de' | 'en',
+      },
+    });
+
+    if (response.error) {
+      console.error('Quiz error:', response.error);
+      toast.error(response.error.message || 'Failed to generate quiz');
       return;
     }
 
-    setIsGeneratingQuiz(true);
-    setQuizAnswers({});
-    setShowQuizResults(false);
-    
-    try {
-      const response = await supabase.functions.invoke('generate-quiz', {
-        body: {
-          material_id: id,
-          ocr_text: textForAi,
-          title: material.title,
-          topic: material.topic,
-          count: 8,
-          language: studyLanguage,
-        },
-      });
-
-      if (response.error) {
-        console.error('Quiz error:', response.error);
-        toast.error(response.error.message || 'Failed to generate quiz');
-        return;
-      }
-
-      if (response.data?.error) {
-        toast.error(response.data.error);
-        return;
-      }
-
-      setQuizQuestions(response.data.questions);
-      setQuizWarnings(response.data.warnings || []);
-      toast.success(`${response.data.questions.length} quiz questions generated!`);
-    } catch (err) {
-      console.error('Generate quiz error:', err);
-      toast.error('Failed to generate quiz');
-    } finally {
-      setIsGeneratingQuiz(false);
+    if (response.data?.error) {
+      toast.error(response.data.error);
+      return;
     }
-  };
+
+    setQuizQuestions(response.data.questions || []);
+    setQuizWarnings(response.data.warnings || []);
+    toast.success(`${(response.data.questions || []).length} quiz questions generated!`);
+  } catch (err) {
+    console.error('Generate quiz error:', err);
+    toast.error('Failed to generate quiz');
+  } finally {
+    setIsGeneratingQuiz(false);
+  }
+};
+
 
   // Public handler - checks translation first
   const handleGenerateQuiz = () => {
