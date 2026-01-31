@@ -135,7 +135,7 @@ serve(async (req) => {
         { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
-    м;
+    
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -242,78 +242,26 @@ serve(async (req) => {
       contentToTranslate = `TITLE: ${titleToTranslate}\n\nCONTENT:\n${textToTranslate}`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: shouldTranslateTitle
-              ? `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
+    const response = await fetch(AI_GATEWAY_URL, {
+  method: "POST",
+  headers: { ... },
+  body: JSON.stringify(payload)
+});
 
-The input has this format:
-TITLE: [title text]
+if (!response.ok) {
+  const errorText = await response.text();
+  console.error("AI Gateway error:", response.status, errorText);
 
-CONTENT:
-[main content]
+  return new Response(
+    JSON.stringify({
+      error: "AI Gateway request failed",
+      status: response.status,
+      details: errorText
+    }),
+    { status: response.status, headers: { "Content-Type": "application/json" } }
+  );
+}
 
-You MUST return your response in this EXACT format:
-TITLE: [translated title]
-
-CONTENT:
-[translated content]
-
-RULES:
-1. Preserve ALL medical terminology accurately
-2. Keep the original text structure (paragraphs, bullet points, numbering)
-3. Maintain abbreviations in their common form for the target language
-4. If a term has no direct translation, keep the original with a translation in parentheses
-5. Return ONLY the translated text in the format above, no explanations
-6. Preserve formatting markers like [unclear] as-is`
-              : `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
-
-RULES:
-1. Preserve ALL medical terminology accurately
-2. Keep the original text structure (paragraphs, bullet points, numbering)
-3. Maintain abbreviations in their common form for the target language
-4. If a term has no direct translation, keep the original with a translation in parentheses
-5. Return ONLY the translated text, no explanations or notes
-6. Preserve formatting markers like [unclear] as-is`,
-          },
-          {
-            role: "user",
-            content: contentToTranslate,
-          },
-        ],
-        max_tokens: 8192,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Translation failed", details: errorText }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await response.json();
-    const rawResult = data.choices?.[0]?.message?.content || "";
-
-    if (!rawResult) {
-      console.error("Empty translation result");
-      return new Response(JSON.stringify({ error: "Translation returned empty result" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     let translatedText: string;
     let translatedTitle: string | undefined;
