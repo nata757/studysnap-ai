@@ -3,17 +3,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const LANGUAGE_NAMES: Record<string, string> = {
-  ru: 'Russian',
-  de: 'German',
-  en: 'English',
+  ru: "Russian",
+  de: "German",
+  en: "English",
 };
 
-type SupportedLanguage = 'ru' | 'de' | 'en';
+type SupportedLanguage = "ru" | "de" | "en";
 
 interface LanguageVersion {
   title?: string;
@@ -29,15 +29,15 @@ interface I18nData {
 // Parse notes field to get i18n data
 function parseI18nData(notes: string | null): I18nData | null {
   if (!notes) return null;
-  
+
   try {
     const parsed = JSON.parse(notes);
-    
+
     // Current format: { i18n: { sourceLanguage, versions } }
     if (parsed?.i18n?.sourceLanguage && parsed?.i18n?.versions) {
       return parsed.i18n as I18nData;
     }
-    
+
     // New proposed format: { originalLanguage, originalText: {title, text}, translations }
     if (parsed?.originalLanguage && parsed?.originalText?.text) {
       const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
@@ -63,9 +63,9 @@ function parseI18nData(notes: string | null): I18nData | null {
         versions,
       };
     }
-    
+
     // Legacy format: { originalText (string), sourceLanguage, translations }
-    if (parsed?.originalText && typeof parsed.originalText === 'string' && parsed?.sourceLanguage) {
+    if (parsed?.originalText && typeof parsed.originalText === "string" && parsed?.sourceLanguage) {
       const versions: Partial<Record<SupportedLanguage, LanguageVersion>> = {};
       versions[parsed.sourceLanguage as SupportedLanguage] = {
         text: parsed.originalText,
@@ -86,7 +86,7 @@ function parseI18nData(notes: string | null): I18nData | null {
         versions,
       };
     }
-    
+
     return null;
   } catch {
     return null;
@@ -95,7 +95,7 @@ function parseI18nData(notes: string | null): I18nData | null {
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -104,35 +104,41 @@ serve(async (req) => {
 
     // Support both new (materialId) and legacy (text+sourceLanguage) calls
     const isLegacyCall = !materialId && text && sourceLanguage;
-    
+
     if (!isLegacyCall && !materialId) {
-      console.error('Missing materialId');
-      return new Response(
-        JSON.stringify({ error: 'Missing required field: materialId' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("Missing materialId");
+      return new Response(JSON.stringify({ error: "Missing required field: materialId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!targetLanguage) {
-      console.error('Missing targetLanguage');
-      return new Response(
-        JSON.stringify({ error: 'Missing required field: targetLanguage' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("Missing targetLanguage");
+      return new Response(JSON.stringify({ error: "Missing required field: targetLanguage" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+    console.log("LOVABLE_API_KEY readable:", !!LOVABLE_API_KEY);
+
     if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+      console.error("LOVABLE_API_KEY missing");
       return new Response(
-        JSON.stringify({ error: 'API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: "API key not configured",
+          debug: "LOVABLE_API_KEY is undefined in Edge Function",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
-
+    м;
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let i18nData: I18nData;
@@ -145,38 +151,37 @@ serve(async (req) => {
       // Legacy call - use provided text and source
       textToTranslate = text;
       actualSourceLanguage = sourceLanguage;
-      
+
       // Same language - return as-is
       if (sourceLanguage === targetLanguage) {
-        return new Response(
-          JSON.stringify({ translatedText: text }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ translatedText: text }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     } else {
       // New flow - fetch material and check i18n data
       const { data: material, error: fetchError } = await supabase
-        .from('materials')
-        .select('notes, ocr_text, title')
-        .eq('id', materialId)
+        .from("materials")
+        .select("notes, ocr_text, title")
+        .eq("id", materialId)
         .single();
 
       if (fetchError || !material) {
-        console.error('Material not found:', fetchError);
-        return new Response(
-          JSON.stringify({ error: 'Material not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.error("Material not found:", fetchError);
+        return new Response(JSON.stringify({ error: "Material not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const parsed = parseI18nData(material.notes);
-      
+
       if (!parsed) {
-        console.error('No i18n data in material');
-        return new Response(
-          JSON.stringify({ error: 'No translation data available' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.error("No i18n data in material");
+        return new Response(JSON.stringify({ error: "No translation data available" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       i18nData = parsed;
@@ -185,28 +190,28 @@ serve(async (req) => {
       // Check if target version exists and is manual - don't overwrite
       const existingVersion = parsed.versions[targetLanguage as SupportedLanguage];
       if (existingVersion?.isManual) {
-        console.log('Version is manual, returning existing text');
+        console.log("Version is manual, returning existing text");
         return new Response(
-          JSON.stringify({ 
-            translatedText: existingVersion.text, 
+          JSON.stringify({
+            translatedText: existingVersion.text,
             translatedTitle: existingVersion.title,
-            isManual: true 
+            isManual: true,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
       // Get source text to translate from
       const sourceVersion = parsed.versions[actualSourceLanguage];
       if (!sourceVersion?.text) {
-        return new Response(
-          JSON.stringify({ error: 'Source text not available' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: "Source text not available" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       textToTranslate = sourceVersion.text;
-      
+
       // Get title if we should translate it
       if (shouldTranslateTitle) {
         titleToTranslate = sourceVersion.title || material.title;
@@ -215,16 +220,18 @@ serve(async (req) => {
       // Same language check
       if (actualSourceLanguage === targetLanguage) {
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             translatedText: textToTranslate,
-            translatedTitle: titleToTranslate 
+            translatedTitle: titleToTranslate,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
     }
 
-    console.log(`Translating from ${actualSourceLanguage} to ${targetLanguage}, text length: ${textToTranslate.length}, includeTitle: ${shouldTranslateTitle}`);
+    console.log(
+      `Translating from ${actualSourceLanguage} to ${targetLanguage}, text length: ${textToTranslate.length}, includeTitle: ${shouldTranslateTitle}`,
+    );
 
     const sourceLangName = LANGUAGE_NAMES[actualSourceLanguage] || actualSourceLanguage;
     const targetLangName = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
@@ -235,18 +242,18 @@ serve(async (req) => {
       contentToTranslate = `TITLE: ${titleToTranslate}\n\nCONTENT:\n${textToTranslate}`;
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: "google/gemini-2.5-flash",
         messages: [
           {
-            role: 'system',
-            content: shouldTranslateTitle 
+            role: "system",
+            content: shouldTranslateTitle
               ? `You are a professional medical translator. Translate the following text from ${sourceLangName} to ${targetLangName}.
 
 The input has this format:
@@ -276,12 +283,12 @@ RULES:
 3. Maintain abbreviations in their common form for the target language
 4. If a term has no direct translation, keep the original with a translation in parentheses
 5. Return ONLY the translated text, no explanations or notes
-6. Preserve formatting markers like [unclear] as-is`
+6. Preserve formatting markers like [unclear] as-is`,
           },
           {
-            role: 'user',
-            content: contentToTranslate
-          }
+            role: "user",
+            content: contentToTranslate,
+          },
         ],
         max_tokens: 8192,
         temperature: 0.3,
@@ -290,22 +297,22 @@ RULES:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: 'Translation failed', details: errorText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("AI Gateway error:", response.status, errorText);
+      return new Response(JSON.stringify({ error: "Translation failed", details: errorText }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
-    const rawResult = data.choices?.[0]?.message?.content || '';
+    const rawResult = data.choices?.[0]?.message?.content || "";
 
     if (!rawResult) {
-      console.error('Empty translation result');
-      return new Response(
-        JSON.stringify({ error: 'Translation returned empty result' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("Empty translation result");
+      return new Response(JSON.stringify({ error: "Translation returned empty result" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     let translatedText: string;
@@ -315,14 +322,16 @@ RULES:
     if (shouldTranslateTitle && titleToTranslate) {
       const titleMatch = rawResult.match(/TITLE:\s*(.+?)(?:\n\n|$)/s);
       const contentMatch = rawResult.match(/CONTENT:\s*(.+)/s);
-      
+
       translatedTitle = titleMatch?.[1]?.trim();
       translatedText = contentMatch?.[1]?.trim() || rawResult.trim();
     } else {
       translatedText = rawResult.trim();
     }
 
-    console.log(`Translation completed, text length: ${translatedText.length}${translatedTitle ? `, title: "${translatedTitle}"` : ''}`);
+    console.log(
+      `Translation completed, text length: ${translatedText.length}${translatedTitle ? `, title: "${translatedTitle}"` : ""}`,
+    );
 
     // For new flow, save translation to database
     if (!isLegacyCall && materialId) {
@@ -343,33 +352,32 @@ RULES:
       });
 
       const { error: updateError } = await supabase
-        .from('materials')
+        .from("materials")
         .update({ notes: updatedNotes })
-        .eq('id', materialId);
+        .eq("id", materialId);
 
       if (updateError) {
-        console.error('Failed to save translation:', updateError);
+        console.error("Failed to save translation:", updateError);
         // Still return the translation even if save failed
       } else {
-        console.log('Translation saved to database');
+        console.log("Translation saved to database");
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        translatedText, 
+      JSON.stringify({
+        translatedText,
         translatedTitle,
-        isManual: false 
+        isManual: false,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
-    console.error('Translation error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error("Translation error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: "Internal server error", details: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
